@@ -23,7 +23,7 @@ embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 vector_store = InMemoryVectorStore(embeddings)
 
 
-db = SQLDatabase.from_uri("sqlite:///database/Chinook.db")
+db = SQLDatabase.from_uri("sqlite:///database/Northwind.db")
 
 class State(TypedDict):
     question: str
@@ -63,7 +63,6 @@ Then you should query the schema of the most relevant tables.
 
 agent_executor = create_react_agent(llm, tools, prompt=system_message)
 
-question = "Describe the playlisttrack table?"
 
 # for step in agent_executor.stream(
 #     {"messages": [{"role": "user", "content": question}]},
@@ -74,47 +73,47 @@ question = "Describe the playlisttrack table?"
 
 
 
-def query_as_list(db, query):
-    res = db.run(query)
-    res = [el for sub in ast.literal_eval(res) for el in sub if el]
-    res = [re.sub(r"\b\d+\b", "", string).strip() for string in res]
-    return list(set(res))
+# def query_as_list(db, query):
+#     res = db.run(query)
+#     res = [el for sub in ast.literal_eval(res) for el in sub if el]
+#     res = [re.sub(r"\b\d+\b", "", string).strip() for string in res]
+#     return list(set(res))
 
 
-artists = query_as_list(db, "SELECT Name FROM Artist")
-albums = query_as_list(db, "SELECT Title FROM Album")
+# artists = query_as_list(db, "SELECT Name FROM Artist")
+# albums = query_as_list(db, "SELECT Title FROM Album")
 
 
-_ = vector_store.add_texts(artists + albums)
-retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-description = (
-    "Use to look up values to filter on. Input is an approximate spelling "
-    "of the proper noun, output is valid proper nouns. Use the noun most "
-    "similar to the search."
-)
-retriever_tool = create_retriever_tool(
-    retriever,
-    name="search_proper_nouns",
-    description=description,
-)
-print(retriever_tool.invoke("Alice Chains"))
+# _ = vector_store.add_texts(artists + albums)
+# retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+# description = (
+#     "Use to look up values to filter on. Input is an approximate spelling "
+#     "of the proper noun, output is valid proper nouns. Use the noun most "
+#     "similar to the search."
+# )
+# retriever_tool = create_retriever_tool(
+#     retriever,
+#     name="search_proper_nouns",
+#     description=description,
+# )
+# print(retriever_tool.invoke("Alice Chains"))
 
-# Add to system message
-suffix = (
-    "If you need to filter on a proper noun like a Name, you must ALWAYS first look up "
-    "the filter value using the 'search_proper_nouns' tool! Do not try to "
-    "guess at the proper name - use this function to find similar ones."
-)
+# # Add to system message
+# suffix = (
+#     "If you need to filter on a proper noun like a Name, you must ALWAYS first look up "
+#     "the filter value using the 'search_proper_nouns' tool! Do not try to "
+#     "guess at the proper name - use this function to find similar ones."
+# )
 
-system = f"{system_message}\n\n{suffix}"
+# system = f"{system_message}\n\n{suffix}"
 
-tools.append(retriever_tool)
+# tools.append(retriever_tool)
 
-agent = create_react_agent(llm, tools, prompt=system)
+# agent = create_react_agent(llm, tools, prompt=system)
 
-question = "How many albums does alis in chain have?"
+question = "list out all the employes who sold products to the customer who bought the greatest value of product"
 
-for step in agent.stream(
+for step in agent_executor.stream(
     {"messages": [{"role": "user", "content": question}]},
     stream_mode="values",
 ):
