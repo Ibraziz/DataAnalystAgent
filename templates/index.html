@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Data Analytics Agent</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .query-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .query-section:hover {
+            border-color: #3498db;
+            box-shadow: 0 10px 25px rgba(52, 152, 219, 0.1);
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .icon {
+            width: 24px;
+            height: 24px;
+            opacity: 0.7;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.2);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .results-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #e9ecef;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        .sql-display {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .data-table th {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .data-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .visualization-recommendations {
+            background: linear-gradient(135deg, #e8f5e8, #f0f8f0);
+            border-left: 5px solid #27ae60;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .viz-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .viz-primary {
+            border-left-color: #27ae60;
+        }
+
+        .viz-alternative {
+            border-left-color: #f39c12;
+        }
+
+        .viz-consider {
+            border-left-color: #9b59b6;
+        }
+
+        .viz-item strong {
+            color: #2c3e50;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: 600;
+        }
+
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 5px solid #1976d2;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 5px solid #c62828;
+        }
+
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border-left: 5px solid #2e7d32;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 SQL Data Analytics Agent</h1>
+            <p>Ask questions about your data and get intelligent analysis with visualization recommendations</p>
+        </div>
+
+        <div class="main-content">
+            <div class="query-section">
+                <h2 class="section-title">
+                    <span>💬</span>
+                    Ask Your Question
+                </h2>
+                
+                <div class="input-group">
+                    <label for="question">Business Question</label>
+                    <textarea id="question" placeholder="e.g., Which 10 products have generated the most revenue?">Which 10 products have generated the most revenue?</textarea>
+                </div>
+
+                <div class="input-group">
+                    <label for="database">Database</label>
+                    <select id="database">
+                        <option value="northwind">Northwind Sample Database</option>
+                        <option value="chinook">Chinook Database</option>
+                        <option value="sakila">Sakila Database</option>
+                    </select>
+                </div>
+
+                <button class="btn" onclick="executeQuery()">
+                    🔍 Analyze Data
+                </button>
+
+                <div id="status" class="status" style="display: none;"></div>
+            </div>
+
+            <div class="query-section">
+                <h2 class="section-title">
+                    <span>🎯</span>
+                    Quick Examples
+                </h2>
+                
+                <div style="display: grid; gap: 10px;">
+                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('Which customers have placed the most orders?')">
+                        Top Customers by Orders
+                    </button>
+                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('What are the monthly sales trends for this year?')">
+                        Monthly Sales Trends
+                    </button>
+                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('Which product categories generate the highest profit margins?')">
+                        Category Profit Analysis
+                    </button>
+                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('Show me geographic distribution of sales')">
+                        Geographic Sales Distribution
+                    </button>
+                </div>
+            </div>
+
+            <div id="results" class="results-section full-width" style="display: none;">
+                <div class="result-card">
+                    <h2 class="section-title">
+                        <span>📊</span>
+                        Query Results
+                    </h2>
+                    <div id="sql-query" class="sql-display"></div>
+                    <div id="data-results"></div>
+                </div>
+
+                <div class="result-card">
+                    <h2 class="section-title">
+                        <span>📈</span>
+                        Visualization Recommendations
+                    </h2>
+                    <div id="viz-recommendations"></div>
+                </div>
+
+                <div class="result-card">
+                    <h2 class="section-title">
+                        <span>🎨</span>
+                        Sample Visualization
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="sampleChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChart = null;
+
+        function setQuestion(question) {
+            document.getElementById('question').value = question;
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.innerHTML = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function executeQuery() {
+            const question = document.getElementById('question').value.trim();
+            const database = document.getElementById('database').value;
+
+            if (!question) {
+                showStatus('Please enter a question to analyze.', 'error');
+                return;
+            }
+
+            showStatus('🔄 Executing SQL query and analyzing data...', 'loading');
+            
+            // Hide previous results
+            document.getElementById('results').style.display = 'none';
+
+            // Simulate API call - replace with actual backend integration
+            setTimeout(() => {
+                simulateQueryExecution(question, database);
+            }, 2000);
+        }
+
+        function simulateQueryExecution(question, database) {
+            // This simulates the response from your SQL agent
+            const mockResults = generateMockResults(question);
+            
+            showStatus('✅ Analysis complete!', 'success');
+            displayResults(mockResults);
+            
+            setTimeout(() => {
+                document.getElementById('status').style.display = 'none';
+            }, 3000);
+        }
+
+        function generateMockResults(question) {
+            // Mock data based on question type
+            if (question.toLowerCase().includes('revenue') || question.toLowerCase().includes('products')) {
+                return {
+                    sql: `SELECT p.ProductName, 
+       ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) as Revenue
+FROM Products p
+JOIN OrderDetails od ON p.ProductID = od.ProductID
+GROUP BY p.ProductID, p.ProductName
+ORDER BY Revenue DESC
+LIMIT 10;`,
+                    data: [
+                        { ProductName: 'Côte de Blaye', Revenue: 149984.20 },
+                        { ProductName: 'Thüringer Rostbratwurst', Revenue: 87736.00 },
+                        { ProductName: 'Raclette Courdavault', Revenue: 76296.00 },
+                        { ProductName: 'Camembert Pierrot', Revenue: 50286.00 },
+                        { ProductName: 'Gnocchi di nonna Alice', Revenue: 49827.60 },
+                        { ProductName: 'Perth Pasties', Revenue: 44238.00 },
+                        { ProductName: 'Tarte au sucre', Revenue: 47234.97 },
+                        { ProductName: 'Manjimup Dried Apples', Revenue: 44019.00 },
+                        { ProductName: 'Carnarvon Tigers', Revenue: 36193.50 },
+                        { ProductName: 'Ikura', Revenue: 31777.80 }
+                    ],
+                    visualizations: {
+                        primary: "2. Column Chart - Shows clear ranking of the 10 products with excellent visual comparison of revenue differences ranging from $31K to $150K",
+                        alternative: "1. Bar Chart - The product names average 18 characters each, making horizontal bars more readable for label display",
+                        consider: "16. Treemap - The 4.7x revenue difference between highest and lowest performers would be effectively represented by proportional area sizes"
+                    }
+                };
+            } else {
+                return {
+                    sql: "SELECT * FROM SampleTable WHERE condition = 'example';",
+                    data: [
+                        { Category: 'Example A', Value: 100 },
+                        { Category: 'Example B', Value: 75 },
+                        { Category: 'Example C', Value: 50 }
+                    ],
+                    visualizations: {
+                        primary: "2. Column Chart - Perfect for comparing categorical data",
+                        alternative: "1. Bar Chart - Good alternative for longer labels",
+                        consider: "9. Pie Chart - Shows proportional relationships"
+                    }
+                };
+            }
+        }
+
+        function displayResults(results) {
+            // Display SQL query
+            document.getElementById('sql-query').textContent = results.sql;
+
+            // Display data table
+            const tableHtml = generateDataTable(results.data);
+            document.getElementById('data-results').innerHTML = tableHtml;
+
+            // Display visualizations
+            const vizHtml = generateVisualizationRecommendations(results.visualizations);
+            document.getElementById('viz-recommendations').innerHTML = vizHtml;
+
+            // Create sample chart
+            createSampleChart(results.data);
+
+            // Show results section
+            document.getElementById('results').style.display = 'grid';
+        }
+
+        function generateDataTable(data) {
+            if (!data || data.length === 0) return '<p>No data returned.</p>';
+
+            const headers = Object.keys(data[0]);
+            let html = '<table class="data-table"><thead><tr>';
+            
+            headers.forEach(header => {
+                html += `<th>${header}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            data.forEach(row => {
+                html += '<tr>';
+                headers.forEach(header => {
+                    const value = row[header];
+                    const formattedValue = typeof value === 'number' && value > 1000 
+                        ? value.toLocaleString() 
+                        : value;
+                    html += `<td>${formattedValue}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function generateVisualizationRecommendations(viz) {
+            return `
+                <div class="visualization-recommendations">
+                    <h3 style="margin-bottom: 20px; color: #2c3e50;">Based on the actual data analysis:</h3>
+                    
+                    <div class="viz-item viz-primary">
+                        <strong>🥇 Primary Recommendation</strong>
+                        ${viz.primary}
+                    </div>
+                    
+                    <div class="viz-item viz-alternative">
+                        <strong>🥈 Alternative Option</strong>
+                        ${viz.alternative}
+                    </div>
+                    
+                    <div class="viz-item viz-consider">
+                        <strong>💡 Consider Also</strong>
+                        ${viz.consider}
+                    </div>
+                </div>
+            `;
+        }
+
+        function createSampleChart(data) {
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const ctx = document.getElementById('sampleChart').getContext('2d');
+            
+            // Prepare data for Chart.js
+            const labels = data.map(item => {
+                const key = Object.keys(item)[0];
+                let label = item[key];
+                // Truncate long labels
+                return label.length > 15 ? label.substring(0, 15) + '...' : label;
+            });
+            
+            const values = data.map(item => {
+                const keys = Object.keys(item);
+                return item[keys[1]] || item[keys[0]];
+            });
+
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Value',
+                        data: values,
+                        backgroundColor: [
+                            '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+                            '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'
+                        ],
+                        borderColor: '#2c3e50',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Sample Visualization (Column Chart)',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize with example question
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus on question input
+            document.getElementById('question').focus();
+        });
+    </script>
+</body>
+</html>
