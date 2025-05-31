@@ -5,6 +5,7 @@ from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
 from tools import get_sql_tools, create_proper_noun_tool
 from langchain_core.messages import AIMessage
 from schemas import QueryResult
+from config import RECURSION_LIMIT
 import json
 import re
 
@@ -25,14 +26,18 @@ def create_agent(use_proper_noun_tool=False, database_name=None):
     
     return create_react_agent(llm, tools, prompt=system_prompt)
 
-def execute_agent(agent, question):
+def execute_agent(agent, question, recursion_limit=None):
     """Execute the agent with a given question and return structured results."""
+    if recursion_limit is None:
+        recursion_limit = RECURSION_LIMIT
+    
     messages = []
     
     # Collect all messages from the stream
     for step in agent.stream(
         {"messages": [{"role": "user", "content": question}]},
         stream_mode="values",
+        config={"recursion_limit": recursion_limit}
     ):
         if "messages" in step:
             messages.extend(step["messages"])
@@ -44,11 +49,14 @@ def execute_agent(agent, question):
 
 
 
-def execute_agent_with_results(agent, question, database_connection=None):
+def execute_agent_with_results(agent, question, database_connection=None, recursion_limit=None):
     """Execute agent and return clean structured results with SQL, description, and data."""
+    if recursion_limit is None:
+        recursion_limit = RECURSION_LIMIT
+    
     try:
         # First, let the agent explore the database and generate the query
-        messages = execute_agent(agent, question)
+        messages = execute_agent(agent, question, recursion_limit)
         
         # Extract SQL query, data, and description from the agent's messages
         sql_query = ""
@@ -460,10 +468,14 @@ def extract_description(text):
     return description if description else "Query executed successfully"
 
 # Backwards compatibility
-def execute_agent_original(agent, question):
+def execute_agent_original(agent, question, recursion_limit=None):
     """Original execute_agent function for backwards compatibility."""
+    if recursion_limit is None:
+        recursion_limit = RECURSION_LIMIT
+    
     for step in agent.stream(
         {"messages": [{"role": "user", "content": question}]},
         stream_mode="values",
+        config={"recursion_limit": recursion_limit}
     ):
         step["messages"][-1].pretty_print()

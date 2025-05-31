@@ -4,6 +4,7 @@ from flask_cors import CORS
 import traceback
 import os
 from agent import create_agent, execute_agent_with_results
+from config import RECURSION_LIMIT
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +22,7 @@ def execute_query():
         question = data.get('question', '').strip()
         database = data.get('database', 'northwind')  # Default to northwind
         use_proper_noun_tool = data.get('use_proper_noun_tool', False)
+        recursion_limit = data.get('recursion_limit', RECURSION_LIMIT)  # Allow override via API
         
         if not question:
             return jsonify({'error': 'Question is required'}), 400
@@ -36,9 +38,8 @@ def execute_query():
         # Get the database connection for passing to the execution function
         from models import get_database_connection
         db_connection = get_database_connection(database)
-        
-        # Execute agent and get structured results
-        results = execute_agent_with_results(agent, question, db_connection)
+          # Execute agent and get structured results
+        results = execute_agent_with_results(agent, question, db_connection, recursion_limit)
         
         # Return structured response
         result = {

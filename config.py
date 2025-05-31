@@ -39,4 +39,5 @@ EMBEDDING_MODEL = "models/embedding-001"
 
 # Agent Configuration
 TOP_K_RESULTS = 5
-DIALECT = "SQLite" 
+DIALECT = "SQLite"
+RECURSION_LIMIT = 50  # Default recursion limit for LangGraph agents
