@@ -7,7 +7,8 @@ from config import (
     DATABASE_URI,
     LLM_MODEL,
     LLM_PROVIDER,
-    EMBEDDING_MODEL
+    EMBEDDING_MODEL,
+    get_database_uri
 )
 
 # Initialize base LLM for tools
@@ -20,5 +21,15 @@ structured_llm = llm.with_structured_output(QueryResult)
 embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
 vector_store = InMemoryVectorStore(embeddings)
 
-# Initialize database
-db = SQLDatabase.from_uri(DATABASE_URI) 
+# Initialize default database
+db = SQLDatabase.from_uri(DATABASE_URI)
+
+def get_database_connection(database_name):
+    """Get a database connection for the specified database."""
+    database_uri = get_database_uri(database_name)
+    return SQLDatabase.from_uri(database_uri)
+
+def get_database_connection(database_name):
+    """Get a database connection for the specified database."""
+    database_uri = get_database_uri(database_name)
+    return SQLDatabase.from_uri(database_uri)

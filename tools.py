@@ -11,16 +11,20 @@ def query_as_list(db, query):
     res = [re.sub(r"\b\d+\b", "", string).strip() for string in res]
     return list(set(res))
 
-def get_sql_tools():
-    """Get SQL database tools."""
-    toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+def get_sql_tools(database_connection=None):
+    """Get SQL database tools for the specified database connection."""
+    target_db = database_connection if database_connection else db
+    toolkit = SQLDatabaseToolkit(db=target_db, llm=llm)
     return toolkit.get_tools()
 
-def create_proper_noun_tool():
+def create_proper_noun_tool(database_connection=None):
     """Create a retriever tool for proper noun lookups."""
+    target_db = database_connection if database_connection else db
+    
     # Example usage of proper noun tool (commented out as it requires specific data)
-    # artists = query_as_list(db, "SELECT Name FROM Artist")
-    # albums = query_as_list(db, "SELECT Title FROM Album")
+    # When enabled, the target_db variable would be used like this:
+    # artists = query_as_list(target_db, "SELECT Name FROM Artist")
+    # albums = query_as_list(target_db, "SELECT Title FROM Album")
     # vector_store.add_texts(artists + albums)
     
     retriever = vector_store.as_retriever(search_kwargs={"k": 5})
@@ -33,4 +37,4 @@ def create_proper_noun_tool():
         retriever,
         name="search_proper_nouns",
         description=description,
-    ) 
+    )

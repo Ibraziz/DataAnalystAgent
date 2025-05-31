@@ -19,6 +19,7 @@ def execute_query():
     try:
         data = request.json
         question = data.get('question', '').strip()
+        database = data.get('database', 'northwind')  # Default to northwind
         use_proper_noun_tool = data.get('use_proper_noun_tool', False)
         
         if not question:
@@ -26,19 +27,24 @@ def execute_query():
         
         print(f"\n{'='*60}")
         print(f"EXECUTING QUERY: {question}")
+        print(f"Database: {database}")
         print(f"Using proper noun tool: {use_proper_noun_tool}")
         print(f"{'='*60}")
+          # Create agent with the selected database
+        agent = create_agent(use_proper_noun_tool=use_proper_noun_tool, database_name=database)
         
-        # Create agent
-        agent = create_agent(use_proper_noun_tool=use_proper_noun_tool)
+        # Get the database connection for passing to the execution function
+        from models import get_database_connection
+        db_connection = get_database_connection(database)
         
         # Execute agent and get structured results
-        results = execute_agent_with_results(agent, question)
+        results = execute_agent_with_results(agent, question, db_connection)
         
         # Return structured response
         result = {
             'success': True,
             'question': question,
+            'database': database,
             'sql': results.get('sql', ''),
             'data': results.get('data', []),
             'description': results.get('description', ''),

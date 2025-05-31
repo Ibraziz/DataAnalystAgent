@@ -1,6 +1,6 @@
 # Data Analyst Agent - Clean structured output version
 from langgraph.prebuilt import create_react_agent
-from models import llm, db, structured_llm
+from models import llm, db, structured_llm, get_database_connection
 from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
 from tools import get_sql_tools, create_proper_noun_tool
 from langchain_core.messages import AIMessage
@@ -8,13 +8,19 @@ from schemas import QueryResult
 import json
 import re
 
-def create_agent(use_proper_noun_tool=False):
+def create_agent(use_proper_noun_tool=False, database_name=None):
     """Create an agent with the specified configuration."""
-    tools = get_sql_tools()
+    # Get the appropriate database connection
+    if database_name:
+        agent_db = get_database_connection(database_name)
+    else:
+        agent_db = db
+    
+    tools = get_sql_tools(agent_db)
     system_prompt = SYSTEM_MESSAGE
     
     if use_proper_noun_tool:
-        tools.append(create_proper_noun_tool())
+        tools.append(create_proper_noun_tool(agent_db))
         system_prompt = f"{SYSTEM_MESSAGE}\n\n{PROPER_NOUN_SUFFIX}"
     
     return create_react_agent(llm, tools, prompt=system_prompt)
@@ -83,7 +89,7 @@ def execute_agent_structured(agent, question):
             'description': f'Error occurred: {str(e)}'
         }
 
-def execute_agent_with_results(agent, question):
+def execute_agent_with_results(agent, question, database_connection=None):
     """Execute agent and return clean structured results with SQL, description, and data."""
     try:
         # First, let the agent explore the database and generate the query
@@ -136,10 +142,9 @@ def execute_agent_with_results(agent, question):
             elif isinstance(msg, AIMessage) and not hasattr(msg, 'tool_calls'):
                 # This is the final AI response
                 description = msg.content
-        
-        # If no data was extracted from tool messages but we have a SQL query, try executing it
+          # If no data was extracted from tool messages but we have a SQL query, try executing it
         if not data and sql_query:
-            data = execute_sql_query(sql_query)
+            data = execute_sql_query(sql_query, database_connection)
           # Extract description from final AI message if we don't have one
         if not description:
             for msg in reversed(messages):
@@ -212,14 +217,15 @@ def extract_sql_query(text):
 
 
 
-def execute_sql_query(sql_query):
+def execute_sql_query(sql_query, database_connection=None):
     """Execute SQL query and return data as list of dictionaries."""
     try:
         if not sql_query.strip():
             return []
         
-        # Use the database connection from models
-        result = db.run(sql_query)
+        # Use the specified database connection or fall back to default
+        target_db = database_connection if database_connection else db
+        result = target_db.run(sql_query)
         
         # Handle different result types
         if result is None:
