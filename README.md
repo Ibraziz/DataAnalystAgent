@@ -21,7 +21,7 @@
 git clone https://github.com/yourusername/DataAnalystAgent.git
 cd DataAnalystAgent
 ```
-![step1](C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step1.png)
+![step1](images/step1.png)
 
 ### 2. Install dependencies
 
@@ -29,14 +29,14 @@ cd DataAnalystAgent
 pip install -r requirements.txt
 ```
 
-![step2](C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step2.png)
+![step2](images/step2.png)
 
 ### 3. Prepare your database
 
 - Place your SQLite database file in the `database/` folder.
 - Example databases: `Chinook_Sqlite.sql`,`Northwind_Sqlitesql`
 
-![step3](C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step3.png)
+![step3](images/step3.png)
 
 ### 4. Run the agent
 
@@ -44,12 +44,12 @@ pip install -r requirements.txt
 python app.py
 ```
 
-![step5](C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step5.png)
+![step5](images/step5.png)
 
 - The agent will prompt you for a question or run the existing example in `app.py`.
 - Visualizations will be displayed using HTML & CSS.
 
-![step6](C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step1.png)
+![step6](images/step6.png)
 ---
 
 ## 🗂️ Project Structure
@@ -89,9 +89,9 @@ The agent will:
 
 ---
 
-![step9]((C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step9.png))
-![step8]((C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step8.png))
-![step7]((C:\Users\pinku\Downloads\Hackathon\DataAnalystAgent\images\step7.png))
+![step9](images/step9.png)
+![step8](images/step8.png)
+![step7](images/step7.png)
 
 ## 🛠️ Customization
 
