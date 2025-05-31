@@ -4,7 +4,7 @@ from flask_cors import CORS
 import traceback
 import os
 from agent import create_agent, execute_agent_with_results
-from config import RECURSION_LIMIT, get_chart_template
+from config import RECURSION_LIMIT
 
 app = Flask(__name__)
 CORS(app)
@@ -49,15 +49,16 @@ def execute_query():
             'sql': results.get('sql', ''),
             'data': results.get('data', []),
             'description': results.get('description', ''),
+            'charts': results.get('charts', []),  # New charts key
             'debug_info': {
                 'sql_found': bool(results.get('sql')),
                 'data_rows': len(results.get('data', [])),
-                'has_description': bool(results.get('description'))
-            },
-            'chart_properties': get_chart_template('bar', ['Category A', 'Category B', 'Category C'], 'Sample Values', [100, 200, 300], 'Sample Bar Chart')
+                'has_description': bool(results.get('description')),
+                'charts_count': len(results.get('charts', []))  # Debug info for charts
+            }
         }
         
-        print(f"DEBUG: Returning result with {len(results.get('data', []))} rows")
+        print(f"DEBUG: Returning result with {len(results.get('data', []))} rows and {len(results.get('charts', []))} charts")
         return jsonify(result)
         
     except Exception as e:

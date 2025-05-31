@@ -293,24 +293,6 @@
             }
         }
 
-        .chart-controls {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .chart-mapping {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 15px 0;
-        }
-
-        .chart-mapping .input-group {
-            margin-bottom: 0;
-        }
-
         .charts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -338,6 +320,16 @@
             position: relative;
             height: 400px;
             width: 100%;
+        }
+
+        .no-charts-message {
+            text-align: center;
+            color: #666;
+            padding: 40px 20px;
+            font-style: italic;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px dashed #ddd;
         }
     </style>
 </head>
@@ -434,8 +426,6 @@
     </div>
 
     <script>
-        let currentChart = null;
-        let currentData = null;
         let charts = [];
 
         function setQuestion(question) {
@@ -469,7 +459,7 @@
             document.getElementById('results').style.display = 'none';
 
             try {
-                console.log("Sending request with:", { question, database, use_proper_noun_tool });  // Debug log
+                console.log("Sending request with:", { question, database, use_proper_noun_tool });
                 const response = await fetch('/api/query', {
                     method: 'POST',
                     headers: {
@@ -483,7 +473,7 @@
                 });
 
                 const data = await response.json();
-                console.log("Received response:", data);  // Debug log
+                console.log("Received response:", data);
 
                 if (!response.ok) {
                     throw new Error(data.error || 'An error occurred');
@@ -529,115 +519,56 @@
             const descriptionHtml = generateDescriptionDisplay(results.description);
             document.getElementById('analysis-description').innerHTML = descriptionHtml;
 
-            // Display charts based on chart_properties
-            if (results.chart_properties && Object.keys(results.chart_properties).length > 0) {
-                console.log("Chart properties:", results.chart_properties);
-                const chartConfigs = createChartsFromProperties(results.chart_properties);
-                displayCharts(chartConfigs);
-            } else {
-                document.getElementById('charts-container').innerHTML = 
-                    '<p style="text-align: center; color: #666; padding: 20px;">No visualizations available for this data.</p>';
-            }
+            // Display charts from the charts array
+            displayCharts(results.charts || []);
 
             // Show results section
             document.getElementById('results').style.display = 'grid';
         }
 
-        function createChartsFromProperties(chartProperties) {
-            const chartConfigs = [];
-            
-            // Handle single chart properties
-            if (chartProperties.type) {
-                chartConfigs.push(createSingleChartConfig(chartProperties));
-            } 
-            // Handle multiple chart properties
-            else {
-                for (const [key, props] of Object.entries(chartProperties)) {
-                    if (props.type) {
-                        chartConfigs.push(createSingleChartConfig(props));
-                    }
-                }
-            }
-            
-            return chartConfigs;
-        }
-
-        function createSingleChartConfig(props) {
-            const config = {
-                type: props.type,
-                title: props.title || 'Chart',
-                data: {
-                    labels: props.data?.labels || [],
-                    datasets: []
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                boxWidth: 12,
-                                font: { size: 11 }
-                            }
-                        }
-                    }
-                }
-            };
-
-            // Add datasets
-            if (props.data?.datasets) {
-                config.data.datasets = props.data.datasets.map(dataset => ({
-                    label: dataset.label,
-                    data: dataset.data,
-                    backgroundColor: dataset.backgroundColor || getColors(dataset.data.length),
-                    borderColor: dataset.borderColor || dataset.backgroundColor || getColors(dataset.data.length),
-                    borderWidth: dataset.borderWidth || 1
-                }));
-            }
-
-            // Add specific options based on chart type
-            if (props.type !== 'pie' && props.type !== 'polarArea') {
-                config.options.scales = {
-                    y: {
-                        beginAtZero: props.y_begin_at_zero !== undefined ? props.y_begin_at_zero : true,
-                        stacked: props.stacked || false
-                    },
-                    x: {
-                        beginAtZero: props.x_begin_at_zero !== undefined ? props.x_begin_at_zero : true,
-                        stacked: props.stacked || false
-                    }
-                };
-
-                if (props.index_axis) {
-                    config.options.indexAxis = props.index_axis;
-                }
-            }
-
-            return config;
-        }
-
         function displayCharts(chartConfigs) {
+            console.log("Displaying charts:", chartConfigs);
+            
             // Destroy any existing charts
-            charts.forEach(chart => chart.destroy());
+            charts.forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
             charts = [];
             
-            // Create container for charts
+            // Get or create container for charts
             const chartsContainer = document.getElementById('charts-container');
+            
+            // Handle case where no charts are provided
+            if (!chartConfigs || chartConfigs.length === 0) {
+                chartsContainer.innerHTML = '<div class="no-charts-message">📊 No visualizations available for this data.</div>';
+                return;
+            }
+            
+            // Create grid container for charts
             chartsContainer.innerHTML = '<div class="charts-grid"></div>';
             const chartsGrid = chartsContainer.querySelector('.charts-grid');
             
             // Create each chart
-            chartConfigs.forEach((config, index) => {
+            chartConfigs.forEach((chartConfig, index) => {
                 try {
+                    console.log(`Creating chart ${index}:`, chartConfig);
+                    
                     // Create wrapper for this chart
                     const wrapper = document.createElement('div');
                     wrapper.className = 'chart-wrapper';
                     
-                    // Add title
-                    const title = document.createElement('h3');
-                    title.innerHTML = `<span>${getChartEmoji(config.type)}</span>${config.title}`;
-                    wrapper.appendChild(title);
+                    // Add title if provided
+                    if (chartConfig.options && chartConfig.options.plugins && chartConfig.options.plugins.title && chartConfig.options.plugins.title.text) {
+                        const title = document.createElement('h3');
+                        title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartConfig.options.plugins.title.text}`;
+                        wrapper.appendChild(title);
+                    } else if (chartConfig.title) {
+                        const title = document.createElement('h3');
+                        title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartConfig.title}`;
+                        wrapper.appendChild(title);
+                    }
                     
                     // Add canvas for chart
                     const canvasContainer = document.createElement('div');
@@ -650,14 +581,38 @@
                     // Add to grid
                     chartsGrid.appendChild(wrapper);
                     
-                    // Create chart
+                    // Create Chart.js chart with the provided configuration
                     const ctx = canvas.getContext('2d');
-                    const chart = new Chart(ctx, config);
+                    
+                    // Ensure responsive options are set
+                    if (!chartConfig.options) {
+                        chartConfig.options = {};
+                    }
+                    chartConfig.options.responsive = true;
+                    chartConfig.options.maintainAspectRatio = false;
+                    
+                    const chart = new Chart(ctx, chartConfig);
                     charts.push(chart);
+                    
+                    console.log(`Successfully created chart ${index}`);
                 } catch (error) {
                     console.error(`Error creating chart ${index}:`, error);
+                    console.error("Chart config that failed:", chartConfig);
+                    
+                    // Create error message in place of failed chart
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'chart-wrapper';
+                    errorDiv.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #e74c3c; background: #fdf2f2; border-radius: 8px; border: 1px solid #f5c6cb;">
+                            <h4>Chart Error</h4>
+                            <p>Failed to render chart ${index + 1}</p>
+                        </div>
+                    `;
+                    chartsGrid.appendChild(errorDiv);
                 }
             });
+            
+            console.log(`Created ${charts.length} charts successfully out of ${chartConfigs.length} provided`);
         }
 
         function getChartEmoji(chartType) {
@@ -668,26 +623,11 @@
                 'doughnut': '🍩',
                 'scatter': '📍',
                 'radar': '🕸️',
-                'polarArea': '🎯'
+                'polarArea': '🎯',
+                'bubble': '💭',
+                'area': '📈'
             };
             return emojiMap[chartType] || '📊';
-        }
-
-        function getColors(count) {
-            const colors = [
-                '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
-                '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'
-            ];
-            
-            if (count <= colors.length) {
-                return colors.slice(0, count);
-            }
-            
-            // If we need more colors, generate them
-            return Array(count).fill().map((_, i) => {
-                const hue = (i * 137.508) % 360; // Use golden angle approximation
-                return `hsl(${hue}, 70%, 60%)`;
-            });
         }
 
         function generateDataTable(data) {
