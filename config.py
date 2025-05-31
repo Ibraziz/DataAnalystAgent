@@ -4,7 +4,10 @@ import os
 GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]
 
 # Database Configuration
-DATABASE_URI = "sqlite:///database/Northwind.db"
+# Get the absolute path to the database file
+DATABASE_DIR = os.path.join(os.path.dirname(__file__), "database")
+DATABASE_PATH = os.path.join(DATABASE_DIR, "Northwind.db")
+DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
 
 # Model Configuration
 LLM_MODEL = "gemini-2.0-flash"

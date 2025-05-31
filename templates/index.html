@@ -8,7 +8,10 @@
     <style>
         * {
             margin: 0;
-            padding: 0;
+            padding:                    <h2 class="section-title">
+                        <span>📝</span>
+                        Analysis Description
+                    </h2>
             box-sizing: border-box;
         }
 
@@ -95,13 +98,18 @@
 
         .input-group {
             margin-bottom: 20px;
-        }
-
-        label {
+        }        label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
             color: #555;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+            transform: scale(1.2);
+            accent-color: #3498db;
         }
 
         input, textarea, select {
@@ -292,7 +300,7 @@
     <div class="container">
         <div class="header">
             <h1>🤖 SQL Data Analytics Agent</h1>
-            <p>Ask questions about your data and get intelligent analysis with visualization recommendations</p>
+            <p>Ask questions about your data and get intelligent analysis with detailed descriptions</p>
         </div>
 
         <div class="main-content">
@@ -305,15 +313,20 @@
                 <div class="input-group">
                     <label for="question">Business Question</label>
                     <textarea id="question" placeholder="e.g., Which 10 products have generated the most revenue?">Which 10 products have generated the most revenue?</textarea>
-                </div>
-
-                <div class="input-group">
+                </div>                <div class="input-group">
                     <label for="database">Database</label>
                     <select id="database">
                         <option value="northwind">Northwind Sample Database</option>
                         <option value="chinook">Chinook Database</option>
                         <option value="sakila">Sakila Database</option>
                     </select>
+                </div>
+
+                <div class="input-group">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="use_proper_noun_tool" style="margin-right: 8px;">
+                        <span>Use proper noun recognition tool (for better entity matching)</span>
+                    </label>
                 </div>
 
                 <button class="btn" onclick="executeQuery()">
@@ -353,12 +366,10 @@
                     </h2>
                     <div id="sql-query" class="sql-display"></div>
                     <div id="data-results"></div>
-                </div>
-
-                <div class="result-card">
+                </div>                <div class="result-card">
                     <h2 class="section-title">
-                        <span>📈</span>
-                        Visualization Recommendations
+                        <span>📝</span>
+                        Analysis Description
                     </h2>
                     <div id="viz-recommendations"></div>
                 </div>
@@ -388,11 +399,10 @@
             status.innerHTML = message;
             status.className = `status ${type}`;
             status.style.display = 'block';
-        }
-
-        function executeQuery() {
+        }        function executeQuery() {
             const question = document.getElementById('question').value.trim();
             const database = document.getElementById('database').value;
+            const use_proper_noun_tool = document.getElementById('use_proper_noun_tool')?.checked || false;
 
             if (!question) {
                 showStatus('Please enter a question to analyze.', 'error');
@@ -404,84 +414,60 @@
             // Hide previous results
             document.getElementById('results').style.display = 'none';
 
-            // Simulate API call - replace with actual backend integration
-            setTimeout(() => {
-                simulateQueryExecution(question, database);
-            }, 2000);
-        }
-
-        function simulateQueryExecution(question, database) {
-            // This simulates the response from your SQL agent
-            const mockResults = generateMockResults(question);
-            
-            showStatus('✅ Analysis complete!', 'success');
-            displayResults(mockResults);
-            
-            setTimeout(() => {
-                document.getElementById('status').style.display = 'none';
-            }, 3000);
-        }
-
-        function generateMockResults(question) {
-            // Mock data based on question type
-            if (question.toLowerCase().includes('revenue') || question.toLowerCase().includes('products')) {
-                return {
-                    sql: `SELECT p.ProductName, 
-       ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) as Revenue
-FROM Products p
-JOIN OrderDetails od ON p.ProductID = od.ProductID
-GROUP BY p.ProductID, p.ProductName
-ORDER BY Revenue DESC
-LIMIT 10;`,
-                    data: [
-                        { ProductName: 'Côte de Blaye', Revenue: 149984.20 },
-                        { ProductName: 'Thüringer Rostbratwurst', Revenue: 87736.00 },
-                        { ProductName: 'Raclette Courdavault', Revenue: 76296.00 },
-                        { ProductName: 'Camembert Pierrot', Revenue: 50286.00 },
-                        { ProductName: 'Gnocchi di nonna Alice', Revenue: 49827.60 },
-                        { ProductName: 'Perth Pasties', Revenue: 44238.00 },
-                        { ProductName: 'Tarte au sucre', Revenue: 47234.97 },
-                        { ProductName: 'Manjimup Dried Apples', Revenue: 44019.00 },
-                        { ProductName: 'Carnarvon Tigers', Revenue: 36193.50 },
-                        { ProductName: 'Ikura', Revenue: 31777.80 }
-                    ],
-                    visualizations: {
-                        primary: "2. Column Chart - Shows clear ranking of the 10 products with excellent visual comparison of revenue differences ranging from $31K to $150K",
-                        alternative: "1. Bar Chart - The product names average 18 characters each, making horizontal bars more readable for label display",
-                        consider: "16. Treemap - The 4.7x revenue difference between highest and lowest performers would be effectively represented by proportional area sizes"
-                    }
-                };
-            } else {
-                return {
-                    sql: "SELECT * FROM SampleTable WHERE condition = 'example';",
-                    data: [
-                        { Category: 'Example A', Value: 100 },
-                        { Category: 'Example B', Value: 75 },
-                        { Category: 'Example C', Value: 50 }
-                    ],
-                    visualizations: {
-                        primary: "2. Column Chart - Perfect for comparing categorical data",
-                        alternative: "1. Bar Chart - Good alternative for longer labels",
-                        consider: "9. Pie Chart - Shows proportional relationships"
-                    }
-                };
-            }
-        }
-
-        function displayResults(results) {
+            // Make actual API call to Flask backend
+            fetch('/api/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question: question,
+                    database: database,
+                    use_proper_noun_tool: use_proper_noun_tool
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('✅ Analysis complete!', 'success');
+                    displayResults(data);
+                } else {
+                    showStatus(`❌ Error: ${data.error}`, 'error');
+                    console.error('API Error:', data);
+                }
+                
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 3000);
+            })
+            .catch(error => {
+                console.error('Network Error:', error);
+                showStatus('❌ Network error. Please check if the server is running.', 'error');
+                
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 5000);
+            });
+        }        function displayResults(results) {
             // Display SQL query
-            document.getElementById('sql-query').textContent = results.sql;
+            document.getElementById('sql-query').textContent = results.sql || 'No SQL query generated';
 
             // Display data table
             const tableHtml = generateDataTable(results.data);
             document.getElementById('data-results').innerHTML = tableHtml;
 
-            // Display visualizations
-            const vizHtml = generateVisualizationRecommendations(results.visualizations);
-            document.getElementById('viz-recommendations').innerHTML = vizHtml;
+            // Display description (instead of visualization recommendations)
+            const descriptionHtml = generateDescriptionDisplay(results.description);
+            document.getElementById('viz-recommendations').innerHTML = descriptionHtml;
 
-            // Create sample chart
-            createSampleChart(results.data);
+            // Create sample chart if data exists
+            if (results.data && results.data.length > 0) {
+                createSampleChart(results.data);
+            } else {
+                // Clear the chart if no data
+                const chartContainer = document.querySelector('.chart-container');
+                chartContainer.innerHTML = '<p style="text-align: center; color: #666; margin-top: 100px;">No data available for visualization</p>';
+            }
 
             // Show results section
             document.getElementById('results').style.display = 'grid';
@@ -512,26 +498,19 @@ LIMIT 10;`,
 
             html += '</tbody></table>';
             return html;
-        }
-
-        function generateVisualizationRecommendations(viz) {
+        }        function generateDescriptionDisplay(description) {
+            if (!description || description.trim() === '') {
+                return '<p style="color: #666; font-style: italic;">No description available.</p>';
+            }
+            
             return `
-                <div class="visualization-recommendations">
-                    <h3 style="margin-bottom: 20px; color: #2c3e50;">Based on the actual data analysis:</h3>
-                    
-                    <div class="viz-item viz-primary">
-                        <strong>🥇 Primary Recommendation</strong>
-                        ${viz.primary}
-                    </div>
-                    
-                    <div class="viz-item viz-alternative">
-                        <strong>🥈 Alternative Option</strong>
-                        ${viz.alternative}
-                    </div>
-                    
-                    <div class="viz-item viz-consider">
-                        <strong>💡 Consider Also</strong>
-                        ${viz.consider}
+                <div class="analysis-description">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #3498db;">
+                        <h3 style="margin-bottom: 15px; color: #2c3e50; display: flex; align-items: center;">
+                            <span style="margin-right: 8px;">📝</span>
+                            Analysis Summary
+                        </h3>
+                        <div style="color: #34495e; line-height: 1.6; white-space: pre-wrap;">${description}</div>
                     </div>
                 </div>
             `;
