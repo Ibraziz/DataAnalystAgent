@@ -13,7 +13,7 @@ Given an input question, you should:
 1. ALWAYS start by looking at the tables in the database to see what you can query
 2. Query the schema of the most relevant tables
 3. Create a syntactically correct {dialect} query to run
-4. Look at the results of the query and provide an answer
+4. Look at the results of the query and provide a detailed answer
 
 Unless the user specifies a specific number of examples they wish to obtain, always limit your
 query to at most {top_k} results.

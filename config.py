@@ -14,7 +14,7 @@ AVAILABLE_DATABASES = {
 }
 
 # Default database
-DEFAULT_DATABASE = "Northwind.db"
+DEFAULT_DATABASE = "northwind"
 
 def get_database_path(database_name):
     """Get the full path for a database file."""

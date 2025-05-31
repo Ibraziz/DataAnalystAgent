@@ -1,6 +1,6 @@
 # Data Analyst Agent - Clean structured output version
 from langgraph.prebuilt import create_react_agent
-from models import llm, db, structured_llm, get_database_connection
+from models import llm, db, get_database_connection
 from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
 from tools import get_sql_tools, create_proper_noun_tool
 from langchain_core.messages import AIMessage
@@ -42,52 +42,7 @@ def execute_agent(agent, question):
     
     return messages
 
-def execute_agent_structured(agent, question):
-    """Execute agent and get structured JSON output directly from LLM."""
-    try:
-        # First, let the agent explore the database and understand the question
-        messages = execute_agent(agent, question)
-        
-        # Extract the final AI response
-        agent_response = None
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage):
-                agent_response = msg.content
-                break
-        
-        if not agent_response:
-            return {
-                'query': '',
-                'description': 'No response generated'
-            }
-        
-        # Now ask the structured LLM to provide the final SQL query and description
-        structured_prompt = f"""
-        Based on the database exploration and analysis below, provide a final SQL query and description in JSON format.
-        
-        Original question: {question}
-        
-        Agent analysis: {agent_response}
-        
-        Please extract or generate the most appropriate SQL query to answer the original question, and provide a clear description.
-        Your response must be in JSON format with two fields:
-        - "query": The final SQL query to execute (should be a valid SQL SELECT statement)
-        - "description": A clear description of what the query does and what results it returns
-        """
-        
-        # Get structured output from LLM
-        structured_result = structured_llm.invoke(structured_prompt)
-        
-        return {
-            'query': structured_result.query,
-            'description': structured_result.description
-        }
-        
-    except Exception as e:
-        return {
-            'query': '',
-            'description': f'Error occurred: {str(e)}'
-        }
+
 
 def execute_agent_with_results(agent, question, database_connection=None):
     """Execute agent and return clean structured results with SQL, description, and data."""
@@ -172,48 +127,7 @@ def execute_agent_with_results(agent, question, database_connection=None):
             'data': []
         }
 
-def extract_sql_query(text):
-    """Extract SQL query from agent response."""
-    # Look for SQL code blocks first
-    sql_patterns = [
-        r'```sql\s*\n(.*?)\n```',
-        r'```SQL\s*\n(.*?)\n```',
-        r'```\s*\n(SELECT.*?)\n```',
-    ]
-    
-    for pattern in sql_patterns:
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            query = match.group(1).strip()
-            # Clean up the query
-            query = re.sub(r'["\',\s]*$', '', query)  # Remove trailing quotes and commas
-            if query.endswith(';'):
-                query = query[:-1]
-            return query
-    
-    # Look for JSON format query
-    json_pattern = r'"query":\s*"(.*?)"'
-    match = re.search(json_pattern, text, re.DOTALL)
-    if match:
-        query = match.group(1).strip()
-        # Clean up escaped characters and extra quotes
-        query = query.replace('\\"', '"').replace('\\n', ' ')
-        query = re.sub(r'["\',\s]*$', '', query)  # Remove trailing quotes and commas
-        if query.endswith(';'):
-            query = query[:-1]
-        return query
-    
-    # Look for plain SQL statements
-    plain_sql_pattern = r'(SELECT\s+.*?(?:LIMIT\s+\d+|;|$))'
-    match = re.search(plain_sql_pattern, text, re.DOTALL | re.IGNORECASE)
-    if match:
-        query = match.group(1).strip()
-        query = re.sub(r'["\',\s]*$', '', query)  # Remove trailing quotes and commas
-        if query.endswith(';'):
-            query = query[:-1]
-        return query
-    
-    return ""
+
 
 
 
