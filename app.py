@@ -19,7 +19,7 @@ def execute_query():
     try:
         data = request.json
         question = data.get('question', '').strip()
-        database = data.get('database', 'northwind')  # Default to northwind
+        database = data.get('database', 'Northwind')  # Default to northwind
         use_proper_noun_tool = data.get('use_proper_noun_tool', False)
         
         if not question:

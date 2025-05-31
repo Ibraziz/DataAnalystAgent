@@ -34,6 +34,7 @@ Use the available tools to explore the database schema before writing queries.
     top_k=5,
 )
 
+
 # Enhanced proper noun handling with better error recovery
 PROPER_NOUN_SUFFIX = ""
 

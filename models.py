@@ -28,8 +28,3 @@ def get_database_connection(database_name):
     """Get a database connection for the specified database."""
     database_uri = get_database_uri(database_name)
     return SQLDatabase.from_uri(database_uri)
-
-def get_database_connection(database_name):
-    """Get a database connection for the specified database."""
-    database_uri = get_database_uri(database_name)
-    return SQLDatabase.from_uri(database_uri)
