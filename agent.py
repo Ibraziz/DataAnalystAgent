@@ -75,6 +75,7 @@ def extract_sql_query(text):
         r'```SQL\n(.*?)\n```',
         r'```\n(SELECT.*?);?\n```',
         r'(SELECT.*?);'
+        r'```\n(query.*?)\n```'
     ]
     
     for pattern in sql_patterns:

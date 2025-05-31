@@ -404,68 +404,33 @@
             // Hide previous results
             document.getElementById('results').style.display = 'none';
 
-            // Simulate API call - replace with actual backend integration
-            setTimeout(() => {
-                simulateQueryExecution(question, database);
-            }, 2000);
-        }
-
-        function simulateQueryExecution(question, database) {
-            // This simulates the response from your SQL agent
-            const mockResults = generateMockResults(question);
-            
-            showStatus('✅ Analysis complete!', 'success');
-            displayResults(mockResults);
-            
-            setTimeout(() => {
-                document.getElementById('status').style.display = 'none';
-            }, 3000);
-        }
-
-        function generateMockResults(question) {
-            // Mock data based on question type
-            if (question.toLowerCase().includes('revenue') || question.toLowerCase().includes('products')) {
-                return {
-                    sql: `SELECT p.ProductName, 
-       ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) as Revenue
-FROM Products p
-JOIN OrderDetails od ON p.ProductID = od.ProductID
-GROUP BY p.ProductID, p.ProductName
-ORDER BY Revenue DESC
-LIMIT 10;`,
-                    data: [
-                        { ProductName: 'Côte de Blaye', Revenue: 149984.20 },
-                        { ProductName: 'Thüringer Rostbratwurst', Revenue: 87736.00 },
-                        { ProductName: 'Raclette Courdavault', Revenue: 76296.00 },
-                        { ProductName: 'Camembert Pierrot', Revenue: 50286.00 },
-                        { ProductName: 'Gnocchi di nonna Alice', Revenue: 49827.60 },
-                        { ProductName: 'Perth Pasties', Revenue: 44238.00 },
-                        { ProductName: 'Tarte au sucre', Revenue: 47234.97 },
-                        { ProductName: 'Manjimup Dried Apples', Revenue: 44019.00 },
-                        { ProductName: 'Carnarvon Tigers', Revenue: 36193.50 },
-                        { ProductName: 'Ikura', Revenue: 31777.80 }
-                    ],
-                    visualizations: {
-                        primary: "2. Column Chart - Shows clear ranking of the 10 products with excellent visual comparison of revenue differences ranging from $31K to $150K",
-                        alternative: "1. Bar Chart - The product names average 18 characters each, making horizontal bars more readable for label display",
-                        consider: "16. Treemap - The 4.7x revenue difference between highest and lowest performers would be effectively represented by proportional area sizes"
-                    }
-                };
-            } else {
-                return {
-                    sql: "SELECT * FROM SampleTable WHERE condition = 'example';",
-                    data: [
-                        { Category: 'Example A', Value: 100 },
-                        { Category: 'Example B', Value: 75 },
-                        { Category: 'Example C', Value: 50 }
-                    ],
-                    visualizations: {
-                        primary: "2. Column Chart - Perfect for comparing categorical data",
-                        alternative: "1. Bar Chart - Good alternative for longer labels",
-                        consider: "9. Pie Chart - Shows proportional relationships"
-                    }
-                };
-            }
+            // Make actual API call to backend
+            fetch('/api/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question: question,
+                    database: database
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                showStatus('✅ Analysis complete!', 'success');
+                displayResults(data);
+                
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 3000);
+            })
+            .catch(error => {
+                showStatus(`❌ Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+            });
         }
 
         function displayResults(results) {
