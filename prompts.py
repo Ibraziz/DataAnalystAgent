@@ -18,6 +18,7 @@ Given an input question, you should:
 Unless the user specifies a specific number of examples they wish to obtain, always limit your
 query to at most {top_k} results.
 
+
 You can order the results by a relevant column to return the most interesting
 examples in the database. Never query for all the columns from a specific table,
 only ask for the relevant columns given the question.

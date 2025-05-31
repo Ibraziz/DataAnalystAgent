@@ -4,8 +4,7 @@ from models import llm, db, get_database_connection
 from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
 from tools import get_sql_tools, create_proper_noun_tool
 from langchain_core.messages import AIMessage
-from schemas import QueryResult
-from config import RECURSION_LIMIT
+from config import RECURSION_LIMIT, DIALECT
 import json
 import re
 
@@ -57,11 +56,9 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
     try:
         # First, let the agent explore the database and generate the query
         messages = execute_agent(agent, question, recursion_limit)
-        
-        # Extract SQL query, data, and description from the agent's messages
+          # Extract SQL query, data from the agent's messages
         sql_query = ""
         data = []
-        description = ""
         
         # Look through messages to find SQL query and results
         for msg in messages:
@@ -90,8 +87,7 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
                             elif isinstance(row, dict):
                                 data.append(row)
                         
-                        # If no column names found, create generic ones
-                        if not column_names and data and isinstance(parsed_result[0], (list, tuple)):
+                        # If no column names found, create generic ones                        if not column_names and data and isinstance(parsed_result[0], (list, tuple)):
                             column_names = [f'Column_{i+1}' for i in range(len(parsed_result[0]))]
                             data = []
                             for row in parsed_result:
@@ -101,30 +97,33 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
                                         row_dict[col_name] = row[i]
                                 data.append(row_dict)
                 except (ValueError, SyntaxError):
-                    pass
-            elif isinstance(msg, AIMessage) and not hasattr(msg, 'tool_calls'):
-                # This is the final AI response
-                description = msg.content
-          # If no data was extracted from tool messages but we have a SQL query, try executing it
+                    pass        # If no data was extracted from tool messages but we have a SQL query, try executing it
         if not data and sql_query:
             data = execute_sql_query(sql_query, database_connection)
-          # Extract description from final AI message if we don't have one
-        if not description:
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage) and not hasattr(msg, 'tool_calls'):
-                    description = msg.content
+        
+        # Extract the initial description from the agent's messages
+        initial_description = ""
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and msg.content and msg.content.strip():
+                # Check if this is a final response (not just a tool call)
+                if not hasattr(msg, 'tool_calls') or not msg.tool_calls:
+                    # Extract description from the message content
+                    full_text = msg.content.strip()
+                    initial_description = extract_description(full_text)
                     break
         
-        # If still no description, look for any AI message content
-        if not description:
-            for msg in reversed(messages):
-                if isinstance(msg, AIMessage) and msg.content.strip():
-                    description = msg.content
-                    break
+        # Generate enhanced insights using the new function
+        enhanced_description = generate_enhanced_insights(
+            original_question=question,
+            sql_query=sql_query,
+            data=data,
+            database_connection=database_connection,
+            previous_description=initial_description
+        )
         
         return {
             'sql': sql_query,
-            'description': description,
+            'description': enhanced_description,
             'data': data
         }
         
@@ -393,10 +392,9 @@ def _extract_column_alias(column_expr):
         if len(words) >= 2:
             # Check if the last word could be an alias
             last_word = words[-1].strip()
-            
-            # If the last word doesn't contain operators or special chars, it might be an alias
+              # If the last word doesn't contain operators or special chars, it might be an alias
             if (not re.search(r'[()/*+-=<>]', last_word) and 
-                not last_word.upper() in ('AND', 'OR', 'NOT', 'IS', 'NULL', 'LIKE', 'IN') and
+                last_word.upper() not in ('AND', 'OR', 'NOT', 'IS', 'NULL', 'LIKE', 'IN') and
                 not last_word.startswith('\'') and not last_word.startswith('"')):
                 
                 # Additional check: make sure it's not part of a function or expression
@@ -416,13 +414,12 @@ def _extract_column_alias(column_expr):
         cleaned = re.sub(r'\b(SUM|COUNT|AVG|MIN|MAX|COALESCE|CASE|WHEN|THEN|ELSE|END)\b', '', column_expr, flags=re.IGNORECASE)
         cleaned = re.sub(r'[()/*+-]', ' ', cleaned)
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        
-        # Take the first meaningful word that looks like a column name
+          # Take the first meaningful word that looks like a column name
         words = cleaned.split()
         for word in words:
             word = word.strip('"\'`')
             if (word and 
-                not word.upper() in ('AS', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IS', 'NULL', 'LIKE', 'IN') and
+                word.upper() not in ('AS', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IS', 'NULL', 'LIKE', 'IN') and
                 not word.isdigit() and
                 re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', word)):
                 return word
@@ -466,6 +463,100 @@ def extract_description(text):
         description = description[:500] + "..."
     
     return description if description else "Query executed successfully"
+
+def generate_enhanced_insights(original_question, sql_query, data, database_connection=None, previous_description=None):
+    """
+    Generate enhanced insights by prompting the LLM to find additional interesting information
+    related to the original query results.
+    """
+    try:
+        if not data or not sql_query:
+            return "No data available for analysis."
+        
+        # Use the specified database connection or fall back to default
+        target_db = database_connection if database_connection else db
+        
+        # Create a summary of the data for context
+        data_summary = []
+        if len(data) <= 5:
+            data_summary = data
+        else:
+            data_summary = data[:3] + [{"...": f"and {len(data) - 3} more rows"}]
+        
+        # Build the context with previous description if available
+        context_parts = [
+            f"Original Question: {original_question}",
+            f"Original SQL Query: {sql_query}",
+            f"Sample Results: {json.dumps(data_summary, indent=2)}"
+        ]
+        
+        if previous_description and previous_description.strip():
+            context_parts.insert(-1, f"Previous Analysis: {previous_description}")
+        
+        context_string = "\n".join(context_parts)
+        
+        # Create an agent for generating insights
+        tools = get_sql_tools(target_db)
+        insight_agent = create_react_agent(llm, tools, prompt=f"""
+You are a data analyst expert. Given the original question and previous analysis,
+your task is to explore the database and find additional interesting insights that complement the original query results, just provide one more additional insight.
+
+Focus on:
+1. Creating a syntactically correct {DIALECT} query to run
+2. Look at the results of the query and provide a detailed answer
+3. the query should retrieve interesting information like Trends, patterns, statistical insights or anomalies in the data.
+
+Provide a comprehensive analysis with specific findings. Execute additional queries as needed to gather supporting information, but focus on generating insights rather than just showing raw data.
+
+Use the previous analysis as context to build upon and provide complementary insights.
+
+{context_string}
+
+Generate enhanced insights and analysis based on this information.
+""")
+        
+        # Execute the insight generation
+        insight_messages = execute_agent(
+            insight_agent, 
+            f"Analyze the results and provide enhanced insights for: {original_question}",
+            recursion_limit=RECURSION_LIMIT
+        )
+          # Extract the enhanced description from the insight agent's response
+        enhanced_description = ""
+        for msg in reversed(insight_messages):
+            if isinstance(msg, AIMessage) and msg.content and msg.content.strip():
+                # Check if this is a final response (not just a tool call)
+                if not hasattr(msg, 'tool_calls') or not msg.tool_calls:
+                    enhanced_description = msg.content.strip()
+                    break
+        
+        # Clean up the description if we found one
+        if enhanced_description:
+            # Remove SQL code blocks and tool call references (more gentle cleaning)
+            enhanced_description = re.sub(r'```sql.*?```', '', enhanced_description, flags=re.DOTALL | re.IGNORECASE)
+            enhanced_description = re.sub(r'```[a-zA-Z]*\n.*?```', '', enhanced_description, flags=re.DOTALL)
+            enhanced_description = re.sub(r'Calling tool:.*?(?=\n)', '', enhanced_description, flags=re.DOTALL)
+            enhanced_description = re.sub(r'Tool.*?returned:.*?(?=\n)', '', enhanced_description, flags=re.DOTALL)
+            # Clean up extra whitespace
+            enhanced_description = re.sub(r'\n\s*\n', '\n', enhanced_description)
+            enhanced_description = enhanced_description.strip()
+            
+            # Additional check: if the description is too short or empty after cleaning, 
+            # try to find a better message
+            if len(enhanced_description) < 50:
+                for msg in reversed(insight_messages):
+                    if isinstance(msg, AIMessage) and msg.content and len(msg.content.strip()) > 50:
+                        # Less aggressive cleaning for backup option
+                        backup_desc = re.sub(r'```sql.*?```', '', msg.content, flags=re.DOTALL | re.IGNORECASE)
+                        backup_desc = backup_desc.strip()
+                        if len(backup_desc) > 50:
+                            enhanced_description = backup_desc
+                            break
+        
+        return enhanced_description if enhanced_description and len(enhanced_description) > 10 else "Analysis completed successfully with the provided data."
+        
+    except Exception as e:
+        return f"Unable to generate enhanced insights: {str(e)}"
 
 # Backwards compatibility
 def execute_agent_original(agent, question, recursion_limit=None):
