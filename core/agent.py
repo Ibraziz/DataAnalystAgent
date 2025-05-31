@@ -2,11 +2,12 @@ from typing import List, Dict, Any, Optional
 from langgraph.prebuilt import create_react_agent
 from models import llm, get_database_connection
 from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
-from tools import get_sql_tools, create_proper_noun_tool
+from tools import get_sql_tools, create_proper_noun_tool, create_chart_configuration_prompt
 from config import RECURSION_LIMIT
 from .sql_executor import SQLExecutor
 from .message_processor import MessageProcessor
 from .insight_generator import InsightGenerator
+from .chart_processor import ChartProcessor
 
 class DataAnalystAgent:
     """Main agent class that coordinates data analysis tasks."""
@@ -18,16 +19,20 @@ class DataAnalystAgent:
         self.sql_executor = SQLExecutor(self.db)
         self.message_processor = MessageProcessor()
         self.insight_generator = InsightGenerator(self.db)
+        self.chart_processor = ChartProcessor()
         self.agent = self._create_agent()
     
     def _create_agent(self):
         """Create the underlying agent with the specified configuration."""
         tools = get_sql_tools(self.db)
-        system_prompt = SYSTEM_MESSAGE
+        
+        # Add visualization instructions to the system prompt
+        chart_prompt = create_chart_configuration_prompt()
+        system_prompt = f"{SYSTEM_MESSAGE}\n\n{chart_prompt}"
         
         if self.use_proper_noun_tool:
             tools.append(create_proper_noun_tool(self.db))
-            system_prompt = f"{SYSTEM_MESSAGE}\n\n{PROPER_NOUN_SUFFIX}"
+            system_prompt = f"{system_prompt}\n\n{PROPER_NOUN_SUFFIX}"
         
         return create_react_agent(llm, tools, prompt=system_prompt)
     
@@ -59,7 +64,7 @@ class DataAnalystAgent:
         previous_context: Optional[List[Dict[str, Any]]] = None,
         generate_summary: bool = False
     ) -> Dict[str, Any]:
-        """Execute agent and return clean structured results with SQL, description, and data."""
+        """Execute agent and return clean structured results with SQL, description, data, and charts."""
         try:
             # First, let the agent explore the database and generate the query
             messages = self.execute(question, recursion_limit)
@@ -72,22 +77,34 @@ class DataAnalystAgent:
             if sql_query:
                 data = self.sql_executor.execute_query(sql_query)
             
-            # Extract the initial description
+            # Extract the initial description and look for charts
             initial_description = ""
+            all_response_text = ""
+            
+            # Collect all AI message content for chart extraction
+            for msg in messages:
+                if hasattr(msg, 'content') and msg.content and msg.content.strip():
+                    all_response_text += msg.content + "\n"
+            
+            # Get the final response for description
             final_response = self.message_processor.get_final_response(messages)
             if final_response:
                 initial_description = self.message_processor.extract_description(final_response)
+            
+            # Extract charts from all response text
+            initial_charts = self.chart_processor.extract_charts_from_response(all_response_text)
             
             # Create initial analysis result
             initial_analysis = {
                 'sql': sql_query,
                 'description': initial_description,
                 'data': data,
-                'question': question
+                'question': question,
+                'charts': initial_charts
             }
             
-            # Generate enhanced insights
-            enhanced_description = self.insight_generator.generate_enhanced_insights(
+            # Generate enhanced insights with charts
+            enhanced_result = self.insight_generator.generate_enhanced_insights_with_charts(
                 original_question=question,
                 sql_query=sql_query,
                 data=data,
@@ -95,12 +112,49 @@ class DataAnalystAgent:
                 previous_context=previous_context
             )
             
+            # Merge charts from both initial and enhanced analysis, avoiding duplicates
+            all_charts = []
+            seen_charts = set()  # Track unique charts
+            
+            def chart_to_key(chart: Dict[str, Any]) -> str:
+                """Convert a chart config to a unique string key."""
+                try:
+                    # Create a key based on chart type and data
+                    chart_type = chart.get('type', '')
+                    data = chart.get('data', {})
+                    labels = tuple(data.get('labels', []))
+                    datasets = []
+                    for dataset in data.get('datasets', []):
+                        dataset_data = tuple(dataset.get('data', []))
+                        dataset_label = dataset.get('label', '')
+                        datasets.append((dataset_label, dataset_data))
+                    return f"{chart_type}:{labels}:{tuple(datasets)}"
+                except:
+                    # If any error occurs, fall back to string representation
+                    return str(chart)
+            
+            # Add initial charts
+            for chart in initial_charts:
+                chart_key = chart_to_key(chart)
+                if chart_key not in seen_charts:
+                    seen_charts.add(chart_key)
+                    all_charts.append(chart)
+            
+            # Add enhanced charts, avoiding duplicates
+            enhanced_charts = enhanced_result.get('charts', [])
+            for chart in enhanced_charts:
+                chart_key = chart_to_key(chart)
+                if chart_key not in seen_charts:
+                    seen_charts.add(chart_key)
+                    all_charts.append(chart)
+            
             # Create enhanced analysis result
             enhanced_analysis = {
                 'sql': sql_query,
-                'description': enhanced_description,
+                'description': enhanced_result.get('description', initial_description),
                 'data': data,
-                'question': question
+                'question': question,
+                'charts': all_charts
             }
             
             # Prepare context for summary generation
@@ -122,8 +176,9 @@ class DataAnalystAgent:
                 'description': summary,  # Use the contextual summary as the main description
                 'data': data,
                 'question': question,
+                'charts': all_charts,  # Include all unique charts
                 'initial_analysis': initial_description,  # Keep initial analysis for reference
-                'enhanced_analysis': enhanced_description,  # Keep enhanced analysis for reference
+                'enhanced_analysis': enhanced_result.get('description', ''),  # Keep enhanced analysis for reference
                 'summary': summary  # Include summary separately as well
             }
             
@@ -135,6 +190,7 @@ class DataAnalystAgent:
                 'description': f'Error occurred: {str(e)}',
                 'data': [],
                 'question': question,
+                'charts': [],
                 'initial_analysis': '',
                 'enhanced_analysis': '',
                 'summary': f'Unable to generate summary due to error: {str(e)}'

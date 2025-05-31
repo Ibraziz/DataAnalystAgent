@@ -4,28 +4,30 @@ import re
 from models import llm
 from config import RECURSION_LIMIT, DIALECT
 from langgraph.prebuilt import create_react_agent
-from tools import get_sql_tools
+from tools import get_sql_tools, create_chart_configuration_prompt
 from langchain_core.messages import AIMessage
+from .chart_processor import ChartProcessor
 
 class InsightGenerator:
-    """Handles generation of insights and summaries from query results."""
+    """Generates enhanced insights and visualizations from data analysis results."""
     
-    def __init__(self, database_connection=None):
-        """Initialize with optional database connection."""
-        self.db = database_connection
+    def __init__(self, db=None):
+        """Initialize the insight generator."""
+        self.db = db
+        self.chart_processor = ChartProcessor()
     
-    def generate_enhanced_insights(
+    def generate_enhanced_insights_with_charts(
         self,
         original_question: str,
         sql_query: str,
         data: List[Dict[str, Any]],
         previous_description: Optional[str] = None,
         previous_context: Optional[List[Dict[str, Any]]] = None
-    ) -> str:
-        """Generate enhanced insights from query results."""
+    ) -> Dict[str, Any]:
+        """Generate enhanced insights and chart configurations from analysis results."""
         try:
             if not data or not sql_query:
-                return "No data available for analysis."
+                return {"description": "No data available for analysis.", "charts": []}
             
             # Create a summary of the data for context
             data_summary = []
@@ -46,64 +48,72 @@ class InsightGenerator:
             
             context_string = "\n".join(context_parts)
             
-            # Create an agent for generating insights
+            # Create an agent for generating insights with chart requirements
             tools = get_sql_tools(self.db)
+            chart_prompt = create_chart_configuration_prompt()
             insight_agent = create_react_agent(llm, tools, prompt=f"""
 You are a data analyst expert. Given the original question and previous analysis,
-your task is to explore the database and find additional interesting insights that complement the original query results, just provide one more additional insight.
+your task is to explore the database and find additional interesting insights that complement the original query results.
 
 Focus on:
 1. Creating a syntactically correct {DIALECT} query to run
 2. Look at the results of the query and provide a detailed answer
-3. the query should retrieve interesting information like Trends, patterns, statistical insights or anomalies in the data.
+3. The query should retrieve interesting information like trends, patterns, statistical insights or anomalies in the data
 
-Provide a comprehensive analysis with specific findings. Execute additional queries as needed to gather supporting information, but focus on generating insights rather than just showing raw data.
+{chart_prompt}
 
-Use the previous analysis as context to build upon and provide complementary insights.
+Use the previous analysis as context to build upon and provide complementary insights with appropriate visualizations.
 
 {context_string}
 
-Generate enhanced insights and analysis based on this information.
+Generate enhanced insights and chart configurations based on this information.
 """)
             
             # Execute the insight generation
-            from .agent import execute_agent
-            insight_messages = execute_agent(
-                insight_agent, 
-                f"Analyze the results and provide enhanced insights for: {original_question}",
-                recursion_limit=RECURSION_LIMIT
-            )
+            insight_messages = []
+            for step in insight_agent.stream(
+                {"messages": [{"role": "user", "content": f"Analyze the results, provide enhanced insights, and create chart visualizations for: {original_question}"}]},
+                stream_mode="values",
+                config={"recursion_limit": RECURSION_LIMIT}
+            ):
+                if "messages" in step:
+                    insight_messages.extend(step["messages"])
             
-            # Extract the enhanced description
+            # Extract the enhanced description and charts from the insight agent's response
             enhanced_description = ""
+            all_response_text = ""
+            
+            for msg in insight_messages:
+                if hasattr(msg, 'content') and msg.content and msg.content.strip():
+                    all_response_text += msg.content + "\n"
+            
+            # Get the final response for description
             for msg in reversed(insight_messages):
-                if isinstance(msg, AIMessage) and msg.content and msg.content.strip():
+                if hasattr(msg, 'content') and msg.content and msg.content.strip():
+                    # Check if this is a final response (not just a tool call)
                     if not hasattr(msg, 'tool_calls') or not msg.tool_calls:
                         enhanced_description = msg.content.strip()
                         break
             
+            # Extract charts from all response text
+            charts = self.chart_processor.extract_charts_from_response(all_response_text)
+            
             # Clean up the description
             if enhanced_description:
-                enhanced_description = re.sub(r'```sql.*?```', '', enhanced_description, flags=re.DOTALL | re.IGNORECASE)
-                enhanced_description = re.sub(r'```[a-zA-Z]*\n.*?```', '', enhanced_description, flags=re.DOTALL)
-                enhanced_description = re.sub(r'Calling tool:.*?(?=\n)', '', enhanced_description, flags=re.DOTALL)
-                enhanced_description = re.sub(r'Tool.*?returned:.*?(?=\n)', '', enhanced_description, flags=re.DOTALL)
-                enhanced_description = re.sub(r'\n\s*\n', '\n', enhanced_description)
-                enhanced_description = enhanced_description.strip()
-                
-                if len(enhanced_description) < 50:
-                    for msg in reversed(insight_messages):
-                        if isinstance(msg, AIMessage) and msg.content and len(msg.content.strip()) > 50:
-                            backup_desc = re.sub(r'```sql.*?```', '', msg.content, flags=re.DOTALL | re.IGNORECASE)
-                            backup_desc = backup_desc.strip()
-                            if len(backup_desc) > 50:
-                                enhanced_description = backup_desc
-                                break
+                # Remove code blocks from description
+                enhanced_description = self._clean_description(enhanced_description)
             
-            return enhanced_description if enhanced_description and len(enhanced_description) > 10 else "Analysis completed successfully with the provided data."
+            return {
+                "description": enhanced_description if enhanced_description and len(enhanced_description) > 10 else "Analysis completed successfully with the provided data.",
+                "charts": charts
+            }
             
         except Exception as e:
-            return f"Unable to generate enhanced insights: {str(e)}"
+            print(f"Error in generate_enhanced_insights_with_charts: {e}")
+            return {
+                "description": f"Unable to generate enhanced insights: {str(e)}",
+                "charts": []
+            }
     
     def generate_contextual_summary(
         self,
@@ -111,7 +121,7 @@ Generate enhanced insights and analysis based on this information.
         previous_context: Optional[List[Dict[str, Any]]] = None,
         original_question: Optional[str] = None
     ) -> str:
-        """Generate a comprehensive summary combining current analysis with previous context."""
+        """Generate a comprehensive summary combining current and previous analysis."""
         try:
             # Prepare the context for the summary prompt
             context_parts = []
@@ -182,9 +192,21 @@ Generate a comprehensive executive summary based on all the above information, p
                 summary = str(response).strip()
             
             # Clean up the summary
-            summary = re.sub(r'\n\s*\n', '\n\n', summary)
+            summary = self._clean_description(summary)
             
             return summary if summary else "Summary generation completed successfully."
             
         except Exception as e:
-            return f"Unable to generate contextual summary: {str(e)}" 
+            return f"Unable to generate contextual summary: {str(e)}"
+    
+    def _clean_description(self, text: str) -> str:
+        """Clean up description text by removing code blocks and tool calls."""
+        import re
+        
+        # Remove code blocks
+        text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+        text = re.sub(r'Calling tool:.*?(?=\n)', '', text, flags=re.DOTALL)
+        text = re.sub(r'Tool.*?returned:.*?(?=\n)', '', text, flags=re.DOTALL)
+        text = re.sub(r'\n\s*\n', '\n', text)
+        
+        return text.strip() 

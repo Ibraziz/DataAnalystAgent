@@ -60,22 +60,22 @@ def execute_query():
             'sql': results.get('sql', ''),
             'data': results.get('data', []),
             'description': results.get('description', ''),
-            'charts': results.get('charts', []),  # New charts key
+            'charts': results.get('charts', []),  # Charts from the agent
             'debug_info': {
                 'sql_found': bool(results.get('sql')),
                 'data_rows': len(results.get('data', [])),
                 'has_description': bool(results.get('description')),
                 'has_summary': bool(results.get('summary')),
-                'previous_context_provided': bool(previous_context)
-            },
-            'chart_properties': get_chart_template('bar', ['Category A', 'Category B', 'Category C'], 'Sample Values', [100, 200, 300], 'Sample Bar Chart')
+                'previous_context_provided': bool(previous_context),
+                'charts_count': len(results.get('charts', []))
+            }
         }
         
         # Add summary if generated
         if results.get('summary'):
             result['summary'] = results['summary']
         
-        print(f"DEBUG: Returning result with {len(results.get('data', []))} rows")
+        print(f"DEBUG: Returning result with {len(results.get('data', []))} rows and {len(results.get('charts', []))} charts")
         return jsonify(result)
         
     except Exception as e:
@@ -129,14 +129,15 @@ def execute_query_with_context():
             'data': results.get('data', []),
             'description': results.get('description', ''),
             'summary': results.get('summary', ''),
+            'charts': results.get('charts', []),  # Charts from the agent
             'debug_info': {
                 'sql_found': bool(results.get('sql')),
                 'data_rows': len(results.get('data', [])),
                 'has_description': bool(results.get('description')),
                 'has_summary': bool(results.get('summary')),
-                'context_items_processed': len(previous_context) if isinstance(previous_context, list) else 0
-            },
-            'chart_properties': get_chart_template('bar', ['Category A', 'Category B', 'Category C'], 'Sample Values', [100, 200, 300], 'Sample Bar Chart')
+                'context_items_processed': len(previous_context) if isinstance(previous_context, list) else 0,
+                'charts_count': len(results.get('charts', []))
+            }
         }
         
         print(f"DEBUG: Returning result with summary: {bool(results.get('summary'))}")
@@ -167,11 +168,11 @@ def generate_summary_only():
         print(f"Previous context items: {len(previous_context) if isinstance(previous_context, list) else 0}")
         print(f"{'='*60}")
         
-        # Import the summary generation function
-        from agent import generate_contextual_summary
+        # Create agent instance for summary generation
+        agent = DataAnalystAgent()
         
-        # Generate the summary
-        summary = generate_contextual_summary(
+        # Generate the summary using the insight generator
+        summary = agent.insight_generator.generate_contextual_summary(
             current_analysis=current_analysis,
             previous_context=previous_context,
             original_question=original_question
