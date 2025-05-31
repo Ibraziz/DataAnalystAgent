@@ -1,8 +1,8 @@
 # Data Analyst Agent - Clean structured output version
 from langgraph.prebuilt import create_react_agent
 from models import llm, db, get_database_connection
-from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
-from tools import get_sql_tools, create_proper_noun_tool
+from prompts import SYSTEM_MESSAGE, VISUALIZATION_SYSTEM_PROMPT
+from tools import get_sql_tools, create_visualization_tool
 from langchain_core.messages import AIMessage
 from config import RECURSION_LIMIT, DIALECT
 import json
@@ -17,11 +17,10 @@ def create_agent(use_proper_noun_tool=False, database_name=None):
         agent_db = db
     
     tools = get_sql_tools(agent_db)
-    system_prompt = SYSTEM_MESSAGE
+    system_prompt = SYSTEM_MESSAGE    
     
-    if use_proper_noun_tool:
-        tools.append(create_proper_noun_tool(agent_db))
-        system_prompt = f"{SYSTEM_MESSAGE}\n\n{PROPER_NOUN_SUFFIX}"
+    tools.append(create_visualization_tool())
+    system_prompt = f"{system_prompt}\n\n{VISUALIZATION_SYSTEM_PROMPT}"
     
     return create_react_agent(llm, tools, prompt=system_prompt)
 
@@ -46,8 +45,6 @@ def execute_agent(agent, question, recursion_limit=None):
     
     return messages
 
-
-
 def execute_agent_with_results(agent, question, database_connection=None, recursion_limit=None):
     """Execute agent and return clean structured results with SQL, description, and data."""
     if recursion_limit is None:
@@ -56,9 +53,11 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
     try:
         # First, let the agent explore the database and generate the query
         messages = execute_agent(agent, question, recursion_limit)
-          # Extract SQL query, data from the agent's messages
+        
+        # Extract SQL query, data from the agent's messages
         sql_query = ""
         data = []
+        visualization_response = None
         
         # Look through messages to find SQL query and results
         for msg in messages:
@@ -67,37 +66,33 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
                 for tool_call in msg.tool_calls:
                     if tool_call.get('name') == 'sql_db_query' and 'query' in tool_call.get('args', {}):
                         sql_query = tool_call['args']['query']
-            elif hasattr(msg, 'name') and msg.name == 'sql_db_query':
-                # This is a tool result message with query results
-                try:
+                    elif tool_call.get('name') == 'data_visualization_suggester':
+                        visualization_response = tool_call.get('result', '')
+            elif hasattr(msg, 'name'):
+                if msg.name == 'sql_db_query':
                     # Parse the results - they come as a string representation of list of tuples
-                    import ast
-                    parsed_result = ast.literal_eval(msg.content)
-                    if isinstance(parsed_result, list):
-                        # Convert to list of dictionaries
-                        column_names = extract_column_names(sql_query) if sql_query else []
-                        data = []
-                        for row in parsed_result:
-                            if isinstance(row, (list, tuple)) and column_names:
-                                row_dict = {}
-                                for i, col_name in enumerate(column_names):
-                                    if i < len(row):
-                                        row_dict[col_name] = row[i]
-                                data.append(row_dict)
-                            elif isinstance(row, dict):
-                                data.append(row)
-                        
-                        # If no column names found, create generic ones                        if not column_names and data and isinstance(parsed_result[0], (list, tuple)):
-                            column_names = [f'Column_{i+1}' for i in range(len(parsed_result[0]))]
+                    try:
+                        import ast
+                        parsed_result = ast.literal_eval(msg.content)
+                        if isinstance(parsed_result, list):
+                            # Convert to list of dictionaries
+                            column_names = extract_column_names(sql_query) if sql_query else []
                             data = []
                             for row in parsed_result:
-                                row_dict = {}
-                                for i, col_name in enumerate(column_names):
-                                    if i < len(row):
-                                        row_dict[col_name] = row[i]
-                                data.append(row_dict)
-                except (ValueError, SyntaxError):
-                    pass        # If no data was extracted from tool messages but we have a SQL query, try executing it
+                                if isinstance(row, (list, tuple)) and column_names:
+                                    row_dict = {}
+                                    for i, col_name in enumerate(column_names):
+                                        if i < len(row):
+                                            row_dict[col_name] = row[i]
+                                    data.append(row_dict)
+                                elif isinstance(row, dict):
+                                    data.append(row)
+                    except (ValueError, SyntaxError) as e:
+                        print(f"Error parsing SQL results: {e}")
+                elif msg.name == 'data_visualization_suggester':
+                    visualization_response = msg.content
+
+        # If no data was extracted from tool messages but we have a SQL query, try executing it
         if not data and sql_query:
             data = execute_sql_query(sql_query, database_connection)
         
@@ -112,7 +107,7 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
                     initial_description = extract_description(full_text)
                     break
         
-        # Generate enhanced insights using the new function
+        # Generate enhanced insights
         enhanced_description = generate_enhanced_insights(
             original_question=question,
             sql_query=sql_query,
@@ -120,23 +115,179 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
             database_connection=database_connection,
             previous_description=initial_description
         )
+
+        # Get visualization suggestions if we have data
+        chart_properties = None
+        if data and len(data) > 0:
+            try:
+                print(f"Processing visualization for {len(data)} rows of data")
+                chart_properties = generate_visualization_config(question, sql_query, enhanced_description, data)
+                print(f"Generated chart properties: {chart_properties}")
+            except Exception as e:
+                print(f"Error generating visualization: {e}")
+                chart_properties = None
         
         return {
             'sql': sql_query,
             'description': enhanced_description,
-            'data': data
+            'data': data,
+            'chart_properties': chart_properties
         }
         
     except Exception as e:
+        print(f"Error in execute_agent_with_results: {e}")
         return {
             'sql': '',
             'description': f'Error occurred: {str(e)}',
-            'data': []
+            'data': [],
+            'chart_properties': None
         }
 
+def generate_visualization_config(question, sql_query, description, data):
+    """Generate chart configuration based on the data structure and content."""
+    try:
+        if not data or len(data) == 0:
+            return None
+            
+        # Get column names and data types
+        columns = list(data[0].keys())
+        print(f"Data columns: {columns}")
+        
+        # Find numeric and text columns
+        numeric_columns = []
+        text_columns = []
+        
+        for col in columns:
+            sample_values = [row[col] for row in data[:5] if row[col] is not None]
+            if sample_values:
+                if all(isinstance(v, (int, float)) for v in sample_values):
+                    numeric_columns.append(col)
+                else:
+                    text_columns.append(col)
+        
+        print(f"Numeric columns: {numeric_columns}")
+        print(f"Text columns: {text_columns}")
+        
+        # Generate appropriate chart configurations
+        charts = []
+        
+        # If we have both text and numeric columns, create visualizations
+        if text_columns and numeric_columns:
+            # Use first text column as labels, first numeric as data
+            label_col = text_columns[0]
+            data_col = numeric_columns[0]
+            
+            labels = [str(row[label_col]) for row in data]
+            chart_data = [float(row[data_col]) if row[data_col] is not None else 0 for row in data]
+            
+            # Determine best chart type based on data characteristics
+            chart_types = determine_chart_types(labels, chart_data, question)
+            
+            print(f"DEBUG: Question analysis for '{question}':")
+            print(f"  - Chart types determined: {chart_types}")
+            
+            for chart_type in chart_types[:3]:  # Limit to 3 charts
+                print(f"  - Creating {chart_type} chart")
+                chart_config = {
+                    "chart_type": chart_type,
+                    "labels": labels,
+                    "datasets_labels": data_col,
+                    "datasets_data": chart_data,
+                    "title": f"{data_col} by {label_col}",
+                    "y_begin_at_zero": True,
+                    "x_begin_at_zero": False,
+                    "stacked": False,
+                    "index_axis": "x"
+                }
+                charts.append(chart_config)
+                print(f"  - Added {chart_type} chart to charts array")
+        
+        # If we only have numeric columns, create a simple chart with indices
+        elif numeric_columns:
+            data_col = numeric_columns[0]
+            labels = [f"Row {i+1}" for i in range(len(data))]
+            chart_data = [float(row[data_col]) if row[data_col] is not None else 0 for row in data]
+            
+            chart_config = {
+                "chart_type": "line",
+                "labels": labels,
+                "datasets_labels": data_col,
+                "datasets_data": chart_data,
+                "title": f"{data_col} Trend",
+                "y_begin_at_zero": True,
+                "x_begin_at_zero": False,
+                "stacked": False,
+                "index_axis": "x"
+            }
+            charts.append(chart_config)
+        
+        if charts:
+            result = {
+                "type": [chart["chart_type"] for chart in charts],
+                "charts": charts
+            }
+            print(f"DEBUG: Final chart result:")
+            print(f"  - Number of charts: {len(charts)}")
+            print(f"  - Chart types: {[chart['chart_type'] for chart in charts]}")
+            print(f"  - Full result: {result}")
+            return result
+        else:
+            print("DEBUG: No charts generated")
+            return None
+            
+    except Exception as e:
+        print(f"Error in generate_visualization_config: {e}")
+        return None
 
-
-
+def determine_chart_types(labels, data, question):
+    """Determine the best chart types based on data characteristics and question context."""
+    chart_types = []
+    
+    # Analyze data characteristics
+    data_count = len(data)
+    has_time_series = any(word in question.lower() for word in ['trend', 'time', 'monthly', 'yearly', 'daily'])
+    has_comparison = any(word in question.lower() for word in ['top', 'most', 'highest', 'lowest', 'compare'])
+    has_distribution = any(word in question.lower() for word in ['distribution', 'breakdown', 'share'])
+    
+    print(f"DEBUG determine_chart_types:")
+    print(f"  - Data count: {data_count}")
+    print(f"  - Has time series: {has_time_series}")
+    print(f"  - Has comparison: {has_comparison}")
+    print(f"  - Has distribution: {has_distribution}")
+    print(f"  - Question: {question}")
+    
+    # Determine chart types based on context and data
+    if has_time_series:
+        chart_types.extend(['line', 'bar'])
+    elif has_distribution and data_count <= 10:
+        chart_types.extend(['pie', 'bar'])
+    elif has_comparison:
+        chart_types.extend(['bar', 'pie', 'line'])  # Always include pie for comparisons
+    else:
+        # Default choices
+        if data_count <= 5:
+            chart_types.extend(['pie', 'bar'])
+        elif data_count <= 20:
+            chart_types.extend(['bar', 'pie', 'line'])  # Always include pie
+        else:
+            chart_types.extend(['line', 'bar'])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_types = []
+    for chart_type in chart_types:
+        if chart_type not in seen:
+            seen.add(chart_type)
+            unique_types.append(chart_type)
+    
+    # Ensure we always have at least pie if data count is reasonable
+    if data_count <= 10 and 'pie' not in unique_types:
+        unique_types.insert(0, 'pie')
+    
+    final_types = unique_types if unique_types else ['bar', 'pie', 'line']
+    print(f"  - Final chart types: {final_types}")
+    
+    return final_types
 
 def execute_sql_query(sql_query, database_connection=None):
     """Execute SQL query and return data as list of dictionaries."""
@@ -203,8 +354,6 @@ def execute_sql_query(sql_query, database_connection=None):
     except Exception as e:
         print(f"Error executing SQL query: {e}")
         return []
-        return []
-
 
 def extract_column_names(sql_query):
     """Extract column names from SQL SELECT query, handling CTEs, subqueries, and complex syntax."""
@@ -231,7 +380,6 @@ def extract_column_names(sql_query):
         print(f"Error extracting column names: {e}")
         return []
 
-
 def _find_main_select(query):
     """Find the main/final SELECT statement in a query, handling CTEs and subqueries."""
     try:
@@ -254,7 +402,6 @@ def _find_main_select(query):
         pass
     
     return None
-
 
 def _find_final_select_after_cte(query):
     """Find the final SELECT statement after CTE definitions."""
@@ -285,7 +432,6 @@ def _find_final_select_after_cte(query):
     
     except Exception:
         return None
-
 
 def _parse_select_columns(select_clause):
     """Parse column names from a SELECT clause."""
@@ -320,7 +466,6 @@ def _parse_select_columns(select_clause):
     
     except Exception:
         return []
-
 
 def _smart_split_columns(columns_str):
     """Split columns by comma, respecting parentheses and function calls."""
@@ -371,7 +516,6 @@ def _smart_split_columns(columns_str):
     except Exception:
         # Fallback to simple split
         return columns_str.split(',')
-
 
 def _extract_column_alias(column_expr):
     """Extract the column name/alias from a column expression."""
@@ -431,7 +575,6 @@ def _extract_column_alias(column_expr):
     
     except Exception:
         return 'column'
-
 
 def extract_description(text):
     """Extract a meaningful description from the agent response."""
