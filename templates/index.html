@@ -8,10 +8,7 @@
     <style>
         * {
             margin: 0;
-            padding:                    <h2 class="section-title">
-                        <span>📝</span>
-                        Analysis Description
-                    </h2>
+            padding: 0;
             box-sizing: border-box;
         }
 
@@ -90,15 +87,11 @@
             gap: 10px;
         }
 
-        .icon {
-            width: 24px;
-            height: 24px;
-            opacity: 0.7;
-        }
-
         .input-group {
             margin-bottom: 20px;
-        }        label {
+        }
+
+        label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
@@ -156,6 +149,13 @@
             transform: translateY(0);
         }
 
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         .results-section {
             display: grid;
             grid-template-columns: 1fr;
@@ -180,6 +180,7 @@
             line-height: 1.5;
             overflow-x: auto;
             margin-bottom: 20px;
+            white-space: pre-wrap;
         }
 
         .data-table {
@@ -209,38 +210,24 @@
             background: #f8f9fa;
         }
 
-        .visualization-recommendations {
-            background: linear-gradient(135deg, #e8f5e8, #f0f8f0);
-            border-left: 5px solid #27ae60;
+        .analysis-description {
+            background: #f8f9fa;
             padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }
-
-        .viz-item {
-            margin: 15px 0;
-            padding: 15px;
-            background: white;
             border-radius: 8px;
             border-left: 4px solid #3498db;
         }
 
-        .viz-primary {
-            border-left-color: #27ae60;
-        }
-
-        .viz-alternative {
-            border-left-color: #f39c12;
-        }
-
-        .viz-consider {
-            border-left-color: #9b59b6;
-        }
-
-        .viz-item strong {
+        .analysis-description h3 {
+            margin-bottom: 15px;
             color: #2c3e50;
-            display: block;
-            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        .analysis-description div {
+            color: #34495e;
+            line-height: 1.6;
+            white-space: pre-wrap;
         }
 
         .chart-container {
@@ -283,6 +270,17 @@
             grid-column: 1 / -1;
         }
 
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -313,7 +311,9 @@
                 <div class="input-group">
                     <label for="question">Business Question</label>
                     <textarea id="question" placeholder="e.g., Which 10 products have generated the most revenue?">Which 10 products have generated the most revenue?</textarea>
-                </div>                <div class="input-group">
+                </div>
+
+                <div class="input-group">
                     <label for="database">Database</label>
                     <select id="database">
                         <option value="northwind">Northwind Sample Database</option>
@@ -323,13 +323,13 @@
                 </div>
 
                 <div class="input-group">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="use_proper_noun_tool" style="margin-right: 8px;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="use_proper_noun_tool">
                         <span>Use proper noun recognition tool (for better entity matching)</span>
                     </label>
                 </div>
 
-                <button class="btn" onclick="executeQuery()">
+                <button class="btn" onclick="executeQuery()" id="analyzeBtn">
                     🔍 Analyze Data
                 </button>
 
@@ -366,12 +366,14 @@
                     </h2>
                     <div id="sql-query" class="sql-display"></div>
                     <div id="data-results"></div>
-                </div>                <div class="result-card">
+                </div>
+
+                <div class="result-card">
                     <h2 class="section-title">
                         <span>📝</span>
                         Analysis Description
                     </h2>
-                    <div id="viz-recommendations"></div>
+                    <div id="analysis-description"></div>
                 </div>
 
                 <div class="result-card">
@@ -399,35 +401,46 @@
             status.innerHTML = message;
             status.className = `status ${type}`;
             status.style.display = 'block';
-        }        function executeQuery() {
+        }
+
+        async function executeQuery() {
             const question = document.getElementById('question').value.trim();
             const database = document.getElementById('database').value;
             const use_proper_noun_tool = document.getElementById('use_proper_noun_tool')?.checked || false;
+            const analyzeBtn = document.getElementById('analyzeBtn');
 
             if (!question) {
                 showStatus('Please enter a question to analyze.', 'error');
                 return;
             }
 
+            // Disable button and show loading state
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = '🔄 Analyzing...';
             showStatus('🔄 Executing SQL query and analyzing data...', 'loading');
             
             // Hide previous results
             document.getElementById('results').style.display = 'none';
 
-            // Make actual API call to Flask backend
-            fetch('/api/query', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    question: question,
-                    database: database,
-                    use_proper_noun_tool: use_proper_noun_tool
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        database: database,
+                        use_proper_noun_tool: use_proper_noun_tool
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'An error occurred');
+                }
+
                 if (data.success) {
                     showStatus('✅ Analysis complete!', 'success');
                     displayResults(data);
@@ -439,16 +452,22 @@
                 setTimeout(() => {
                     document.getElementById('status').style.display = 'none';
                 }, 3000);
-            })
-            .catch(error => {
+
+            } catch (error) {
                 console.error('Network Error:', error);
                 showStatus('❌ Network error. Please check if the server is running.', 'error');
                 
                 setTimeout(() => {
                     document.getElementById('status').style.display = 'none';
                 }, 5000);
-            });
-        }        function displayResults(results) {
+            } finally {
+                // Re-enable button
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = '🔍 Analyze Data';
+            }
+        }
+
+        function displayResults(results) {
             // Display SQL query
             document.getElementById('sql-query').textContent = results.sql || 'No SQL query generated';
 
@@ -456,9 +475,9 @@
             const tableHtml = generateDataTable(results.data);
             document.getElementById('data-results').innerHTML = tableHtml;
 
-            // Display description (instead of visualization recommendations)
+            // Display description
             const descriptionHtml = generateDescriptionDisplay(results.description);
-            document.getElementById('viz-recommendations').innerHTML = descriptionHtml;
+            document.getElementById('analysis-description').innerHTML = descriptionHtml;
 
             // Create sample chart if data exists
             if (results.data && results.data.length > 0) {
@@ -498,20 +517,20 @@
 
             html += '</tbody></table>';
             return html;
-        }        function generateDescriptionDisplay(description) {
+        }
+
+        function generateDescriptionDisplay(description) {
             if (!description || description.trim() === '') {
                 return '<p style="color: #666; font-style: italic;">No description available.</p>';
             }
             
             return `
                 <div class="analysis-description">
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #3498db;">
-                        <h3 style="margin-bottom: 15px; color: #2c3e50; display: flex; align-items: center;">
-                            <span style="margin-right: 8px;">📝</span>
-                            Analysis Summary
-                        </h3>
-                        <div style="color: #34495e; line-height: 1.6; white-space: pre-wrap;">${description}</div>
-                    </div>
+                    <h3>
+                        <span style="margin-right: 8px;">📝</span>
+                        Analysis Summary
+                    </h3>
+                    <div>${description}</div>
                 </div>
             `;
         }
@@ -528,12 +547,18 @@
                 const key = Object.keys(item)[0];
                 let label = item[key];
                 // Truncate long labels
-                return label.length > 15 ? label.substring(0, 15) + '...' : label;
+                return label && label.length > 15 ? label.substring(0, 15) + '...' : label;
             });
             
             const values = data.map(item => {
                 const keys = Object.keys(item);
-                return item[keys[1]] || item[keys[0]];
+                // Try to find a numeric value
+                for (let key of keys) {
+                    if (typeof item[key] === 'number') {
+                        return item[key];
+                    }
+                }
+                return 0;
             });
 
             currentChart = new Chart(ctx, {
@@ -586,9 +611,8 @@
             });
         }
 
-        // Initialize with example question
+        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-focus on question input
             document.getElementById('question').focus();
         });
     </script>
