@@ -60,11 +60,6 @@ def execute_query():
             'details': error_details
         }), 500
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint."""
-    return jsonify({'status': 'healthy', 'message': 'SQL Agent API is running'})
-
 # Create templates directory if it doesn't exist
 if not os.path.exists('templates'):
     os.makedirs('templates')
