@@ -330,21 +330,19 @@
             border-bottom: 2px solid #f8f9fa;
         }
 
-        .chart-error {
-            background: #ffebee;
-            color: #c62828;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            border: 2px solid #ffcdd2;
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
         }
 
-        .no-charts {
-            background: #f8f9fa;
-            color: #666;
-            padding: 40px;
-            border-radius: 10px;
+        .no-charts-message {
             text-align: center;
+            color: #666;
+            padding: 40px 20px;
+            font-style: italic;
+            background: #f8f9fa;
+            border-radius: 10px;
             border: 2px dashed #ddd;
         }
     </style>
@@ -469,7 +467,7 @@
             document.getElementById('results').style.display = 'none';
 
             try {
-                console.log("Sending request with:", { question, database });
+                console.log("Sending request with:", { question, database, use_proper_noun_tool });
                 const response = await fetch('/api/query', {
                     method: 'POST',
                     headers: {
@@ -528,250 +526,100 @@
             const descriptionHtml = generateDescriptionDisplay(results.description);
             document.getElementById('analysis-description').innerHTML = descriptionHtml;
 
-            // Display charts
-            displayCharts(results.chart_properties, results.data);
+            // Display charts from the charts array
+            displayCharts(results.charts || []);
 
             // Show results section
             document.getElementById('results').style.display = 'grid';
         }
 
-        function displayCharts(chartProperties, rawData) {
-            console.log("=== CHART DISPLAY DEBUG ===");
-            console.log("Chart properties received:", chartProperties);
-            console.log("Raw data:", rawData);
-            
-            const chartsContainer = document.getElementById('charts-container');
+        function displayCharts(chartConfigs) {
+            console.log("Displaying charts:", chartConfigs);
             
             // Destroy any existing charts
             charts.forEach(chart => {
-                try {
+                if (chart && typeof chart.destroy === 'function') {
                     chart.destroy();
-                } catch (error) {
-                    console.error("Error destroying chart:", error);
                 }
             });
             charts = [];
             
-            if (!chartProperties) {
-                console.log("No chart properties provided");
-                chartsContainer.innerHTML = '<div class="no-charts">📊 No chart configuration available.</div>';
+            // Get or create container for charts
+            const chartsContainer = document.getElementById('charts-container');
+            
+            // Handle case where no charts are provided
+            if (!chartConfigs || chartConfigs.length === 0) {
+                chartsContainer.innerHTML = '<div class="no-charts-message">📊 No visualizations available for this data.</div>';
                 return;
             }
-
-            if (!rawData || rawData.length === 0) {
-                console.log("No raw data provided");
-                chartsContainer.innerHTML = '<div class="no-charts">📊 No data available for visualization.</div>';
-                return;
-            }
-
-            try {
-                // Create charts container
-                chartsContainer.innerHTML = '<div class="charts-grid"></div>';
-                const chartsGrid = chartsContainer.querySelector('.charts-grid');
-                
-                // Handle chart properties structure
-                let chartsToCreate = [];
-                
-                if (chartProperties.charts && Array.isArray(chartProperties.charts)) {
-                    console.log("Found charts array with", chartProperties.charts.length, "charts");
-                    console.log("All charts in array:", chartProperties.charts);
-                    chartsToCreate = chartProperties.charts;
-                } else if (chartProperties.chart_type) {
-                    console.log("Found single chart configuration");
-                    chartsToCreate = [chartProperties];
-                } else {
-                    console.warn("Unexpected chart properties format:", chartProperties);
-                    chartsContainer.innerHTML = '<div class="chart-error">⚠️ Invalid chart configuration format received.</div>';
-                    return;
-                }
-
-                console.log("Charts to create:", chartsToCreate.length);
-                console.log("Charts to create details:", chartsToCreate);
-
-                // Create each chart
-                chartsToCreate.forEach((chartConfig, index) => {
-                    try {
-                        console.log(`=== Creating chart ${index + 1}/${chartsToCreate.length} ===`);
-                        console.log("Chart config:", chartConfig);
-                        console.log("Chart type:", chartConfig.chart_type);
-                        console.log("Is pie chart:", chartConfig.chart_type === 'pie');
-                        createSingleChart(chartConfig, index, chartsGrid);
-                        console.log(`✅ Chart ${index + 1} created successfully`);
-                    } catch (error) {
-                        console.error(`❌ Error creating chart ${index + 1}:`, error);
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = 'chart-error';
-                        errorDiv.innerHTML = `⚠️ Error creating chart ${index + 1}: ${error.message}`;
-                        chartsGrid.appendChild(errorDiv);
+            
+            // Create grid container for charts
+            chartsContainer.innerHTML = '<div class="charts-grid"></div>';
+            const chartsGrid = chartsContainer.querySelector('.charts-grid');
+            
+            // Create each chart
+            chartConfigs.forEach((chartConfig, index) => {
+                try {
+                    console.log(`Creating chart ${index}:`, chartConfig);
+                    
+                    // Create wrapper for this chart
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'chart-wrapper';
+                    
+                    // Add title if provided
+                    if (chartConfig.options && chartConfig.options.plugins && chartConfig.options.plugins.title && chartConfig.options.plugins.title.text) {
+                        const title = document.createElement('h3');
+                        title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartConfig.options.plugins.title.text}`;
+                        wrapper.appendChild(title);
+                    } else if (chartConfig.title) {
+                        const title = document.createElement('h3');
+                        title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartConfig.title}`;
+                        wrapper.appendChild(title);
                     }
-                });
-
-                if (charts.length === 0) {
-                    console.log("❌ No charts were successfully created");
-                    chartsContainer.innerHTML = '<div class="chart-error">⚠️ No valid charts could be created from the data.</div>';
-                } else {
-                    console.log(`✅ Successfully created ${charts.length} chart(s)`);
+                    
+                    // Add canvas for chart
+                    const canvasContainer = document.createElement('div');
+                    canvasContainer.className = 'chart-container';
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `chart-${index}`;
+                    canvasContainer.appendChild(canvas);
+                    wrapper.appendChild(canvasContainer);
+                    
+                    // Add to grid
+                    chartsGrid.appendChild(wrapper);
+                    
+                    // Create Chart.js chart with the provided configuration
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Ensure responsive options are set
+                    if (!chartConfig.options) {
+                        chartConfig.options = {};
+                    }
+                    chartConfig.options.responsive = true;
+                    chartConfig.options.maintainAspectRatio = false;
+                    
+                    const chart = new Chart(ctx, chartConfig);
+                    charts.push(chart);
+                    
+                    console.log(`Successfully created chart ${index}`);
+                } catch (error) {
+                    console.error(`Error creating chart ${index}:`, error);
+                    console.error("Chart config that failed:", chartConfig);
+                    
+                    // Create error message in place of failed chart
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'chart-wrapper';
+                    errorDiv.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #e74c3c; background: #fdf2f2; border-radius: 8px; border: 1px solid #f5c6cb;">
+                            <h4>Chart Error</h4>
+                            <p>Failed to render chart ${index + 1}</p>
+                        </div>
+                    `;
+                    chartsGrid.appendChild(errorDiv);
                 }
-
-            } catch (error) {
-                console.error("❌ Error in displayCharts:", error);
-                chartsContainer.innerHTML = `<div class="chart-error">⚠️ Error displaying charts: ${error.message}</div>`;
-            }
-            
-            console.log("=== END CHART DISPLAY DEBUG ===");
-        }
-
-        function createSingleChart(chartConfig, index, container) {
-            // Validate required properties
-            if (!chartConfig.labels || !chartConfig.datasets_data || !chartConfig.chart_type) {
-                throw new Error("Missing required chart properties (labels, datasets_data, or chart_type)");
-            }
-
-            console.log(`Creating chart ${index} with config:`, chartConfig);
-
-            // Create chart wrapper
-            const wrapper = document.createElement('div');
-            wrapper.className = 'chart-wrapper';
-            
-            const title = document.createElement('h3');
-            title.innerHTML = `<span>${getChartEmoji(chartConfig.chart_type)}</span>${chartConfig.title || 'Chart ' + (index + 1)}`;
-            wrapper.appendChild(title);
-            
-            // Create canvas container
-            const canvasContainer = document.createElement('div');
-            canvasContainer.className = 'chart-container';
-            
-            const canvas = document.createElement('canvas');
-            canvas.id = `chart-${index}`;
-            
-            canvasContainer.appendChild(canvas);
-            wrapper.appendChild(canvasContainer);
-            
-            container.appendChild(wrapper);
-
-            console.log(`Canvas container for chart ${index}:`, canvasContainer);
-            console.log(`Canvas element for chart ${index}:`, canvas);
-
-            // Prepare data for Chart.js
-            const labels = Array.isArray(chartConfig.labels) ? chartConfig.labels : [];
-            const data = Array.isArray(chartConfig.datasets_data) ? chartConfig.datasets_data : [];
-            
-            // Ensure data is numeric
-            const numericData = data.map(value => {
-                const num = parseFloat(value);
-                return isNaN(num) ? 0 : num;
             });
-
-            console.log(`Chart ${index} - Labels:`, labels);
-            console.log(`Chart ${index} - Data:`, numericData);
-
-            // Create Chart.js configuration
-            const config = {
-                type: chartConfig.chart_type,
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: chartConfig.datasets_labels || 'Data',
-                        data: numericData,
-                        backgroundColor: chartConfig.chart_type === 'pie' || chartConfig.chart_type === 'doughnut'
-                            ? getColors(numericData.length)
-                            : getColors(1)[0],
-                        borderColor: chartConfig.chart_type === 'pie' || chartConfig.chart_type === 'doughnut'
-                            ? '#ffffff'
-                            : getColors(1)[0],
-                        borderWidth: chartConfig.chart_type === 'pie' || chartConfig.chart_type === 'doughnut' ? 2 : 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: false // We're using HTML title instead
-                        },
-                        legend: {
-                            position: chartConfig.chart_type === 'pie' || chartConfig.chart_type === 'doughnut' ? 'right' : 'top',
-                            labels: { 
-                                boxWidth: 12, 
-                                font: { size: 10 },
-                                padding: 10,
-                                usePointStyle: chartConfig.chart_type === 'pie' || chartConfig.chart_type === 'doughnut'
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    if (chartConfig.chart_type === 'pie' || chartConfig.chart_type === 'doughnut') {
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const percentage = ((context.parsed * 100) / total).toFixed(1);
-                                        return `${context.label}: ${context.formattedValue} (${percentage}%)`;
-                                    }
-                                    return `${context.dataset.label}: ${context.formattedValue}`;
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-
-            // Add scales for non-pie charts only
-            if (chartConfig.chart_type !== 'pie' && chartConfig.chart_type !== 'doughnut' && chartConfig.chart_type !== 'polarArea') {
-                config.options.scales = {
-                    y: {
-                        beginAtZero: chartConfig.y_begin_at_zero !== false,
-                        title: { 
-                            display: true, 
-                            text: chartConfig.datasets_labels || 'Value'
-                        }
-                    },
-                    x: {
-                        title: { 
-                            display: true, 
-                            text: 'Categories' 
-                        },
-                        ticks: { 
-                            maxRotation: 45, 
-                            minRotation: 0 
-                        }
-                    }
-                };
-            }
-
-            console.log("Final chart config for chart", index, ":", config);
-
-            // Create the chart
-            try {
-                const ctx = canvas.getContext('2d');
-                
-                // Special debugging for pie charts
-                if (chartConfig.chart_type === 'pie') {
-                    console.log("🥧 PIE CHART SPECIFIC DEBUG:");
-                    console.log("  - Canvas context:", ctx);
-                    console.log("  - Chart.js available:", typeof Chart);
-                    console.log("  - Labels count:", labels.length);
-                    console.log("  - Data count:", numericData.length);
-                    console.log("  - Labels:", labels);
-                    console.log("  - Data:", numericData);
-                    console.log("  - Config:", JSON.stringify(config, null, 2));
-                }
-                
-                const chart = new Chart(ctx, config);
-                charts.push(chart);
-                console.log(`Chart ${index} created successfully`);
-                
-                // Additional check for pie charts
-                if (chartConfig.chart_type === 'pie') {
-                    console.log("🥧 Pie chart instance:", chart);
-                    setTimeout(() => {
-                        console.log("🥧 Pie chart after 1 second:", chart.isVisible ? 'visible' : 'not visible');
-                    }, 1000);
-                }
-                
-            } catch (error) {
-                console.error(`Error creating Chart.js instance for chart ${index}:`, error);
-                console.error("Error stack:", error.stack);
-                throw error;
-            }
+            
+            console.log(`Created ${charts.length} charts successfully out of ${chartConfigs.length} provided`);
         }
 
         function getChartEmoji(chartType) {
@@ -782,27 +630,11 @@
                 'doughnut': '🍩',
                 'scatter': '📍',
                 'radar': '🕸️',
-                'polarArea': '🎯'
+                'polarArea': '🎯',
+                'bubble': '💭',
+                'area': '📈'
             };
             return emojiMap[chartType] || '📊';
-        }
-
-        function getColors(count) {
-            const colors = [
-                '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
-                '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f',
-                '#16a085', '#8e44ad', '#2980b9', '#d35400', '#c0392b'
-            ];
-            
-            if (count <= colors.length) {
-                return colors.slice(0, count);
-            }
-            
-            // Generate additional colors using HSL
-            return Array(count).fill().map((_, i) => {
-                const hue = (i * 137.508) % 360; // Golden angle approximation
-                return `hsl(${hue}, 70%, 60%)`;
-            });
         }
 
         function generateDataTable(data) {
