@@ -35,7 +35,6 @@ DATABASE_URI = get_database_uri(DEFAULT_DATABASE)
 # Model Configuration
 LLM_MODEL = "gemini-2.0-flash"
 LLM_PROVIDER = "google_genai"
-EMBEDDING_MODEL = "models/embedding-001"
 
 # Agent Configuration
 TOP_K_RESULTS = 5

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from models import llm, get_database_connection
 from prompts import SYSTEM_MESSAGE
-from tools import get_sql_tools, create_proper_noun_tool, create_chart_configuration_prompt
+from tools import get_sql_tools, create_chart_configuration_prompt
 from config import RECURSION_LIMIT
 from .sql_executor import SQLExecutor
 from .message_processor import MessageProcessor
@@ -18,10 +18,9 @@ from .chart_processor import ChartProcessor
 class DataAnalystAgent:
     """Main agent class that coordinates data analysis tasks."""
     
-    def __init__(self, use_proper_noun_tool=False, database_name=None):
+    def __init__(self, database_name=None):
         """Initialize the agent with optional configuration."""
         self.db = get_database_connection(database_name) if database_name else None
-        self.use_proper_noun_tool = use_proper_noun_tool
         self.sql_executor = SQLExecutor(self.db)
         self.message_processor = MessageProcessor()
         self.insight_generator = InsightGenerator(self.db)
@@ -35,10 +34,6 @@ class DataAnalystAgent:
         # Add visualization instructions to the system prompt
         chart_prompt = create_chart_configuration_prompt()
         system_prompt = f"{SYSTEM_MESSAGE}\n\n{chart_prompt}"
-        
-        if self.use_proper_noun_tool:
-            tools.append(create_proper_noun_tool(self.db))
-            system_prompt = f"{system_prompt}\n\n{PROPER_NOUN_SUFFIX}"
         
         return create_react_agent(llm, tools, prompt=system_prompt)
     
@@ -121,7 +116,6 @@ class DataAnalystAgent:
             # Merge charts from both initial and enhanced analysis, avoiding duplicates
             all_charts = []
             seen_charts = set()  # Track unique charts
-            
             def chart_to_key(chart: Dict[str, Any]) -> str:
                 """Convert a chart config to a unique string key."""
                 try:
@@ -129,13 +123,15 @@ class DataAnalystAgent:
                     chart_type = chart.get('type', '')
                     data = chart.get('data', {})
                     labels = tuple(data.get('labels', []))
+                    
                     datasets = []
                     for dataset in data.get('datasets', []):
                         dataset_data = tuple(dataset.get('data', []))
                         dataset_label = dataset.get('label', '')
                         datasets.append((dataset_label, dataset_data))
-                    return f"{chart_type}:{labels}:{tuple(datasets)}"
-                except:
+                        
+                        return f"{chart_type}:{labels}:{tuple(datasets)}"
+                except Exception:
                     # If any error occurs, fall back to string representation
                     return str(chart)
             
@@ -204,9 +200,9 @@ class DataAnalystAgent:
             return result
 
 # Factory functions for backward compatibility
-def create_agent(use_proper_noun_tool=False, database_name=None):
+def create_agent(database_name=None):
     """Create an agent with the specified configuration."""
-    return DataAnalystAgent(use_proper_noun_tool, database_name)
+    return DataAnalystAgent(database_name)
 
 def execute_agent(agent, question, recursion_limit=None):
     """Execute the agent with a given question and return messages."""
