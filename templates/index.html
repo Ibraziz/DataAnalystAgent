@@ -464,10 +464,8 @@
             showStatus('🔄 Executing SQL query and analyzing data...', 'loading');
             
             // Hide previous results
-            document.getElementById('results').style.display = 'none';
-
-            try {
-                console.log("Sending request with:", { question, database, use_proper_noun_tool });
+            document.getElementById('results').style.display = 'none';            try {
+                console.log("Sending request with:", { question, database });
                 const response = await fetch('/api/query', {
                     method: 'POST',
                     headers: {

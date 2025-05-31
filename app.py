@@ -21,7 +21,6 @@ def execute_query():
         data = request.json
         question = data.get('question', '').strip()
         database = data.get('database', 'northwind')  # Default to northwind
-        use_proper_noun_tool = data.get('use_proper_noun_tool', False)
         recursion_limit = data.get('recursion_limit', RECURSION_LIMIT)  # Allow override via API
         previous_context = data.get('previous_context', None)  # Allow passing previous context
         generate_summary = data.get('generate_summary', False)  # Allow requesting summary generation
@@ -32,7 +31,6 @@ def execute_query():
         print(f"\n{'='*60}")
         print(f"EXECUTING QUERY: {question}")
         print(f"Database: {database}")
-        print(f"Using proper noun tool: {use_proper_noun_tool}")
         print(f"Generate summary: {generate_summary}")
         if previous_context:
             print(f"Previous context items: {len(previous_context) if isinstance(previous_context, list) else 1}")
@@ -40,7 +38,6 @@ def execute_query():
         
         # Create agent with the selected database
         agent = DataAnalystAgent(
-            use_proper_noun_tool=use_proper_noun_tool,
             database_name=database
         )
         
@@ -52,7 +49,7 @@ def execute_query():
             generate_summary=generate_summary
         )
         
-        print(f"DEBUG: Agent execution results:")
+        print("DEBUG: Agent execution results:")
         print(f"  - SQL found: {bool(results.get('sql'))}")
         print(f"  - Data rows: {len(results.get('data', []))}")
         print(f"  - Has description: {bool(results.get('description'))}")
@@ -114,8 +111,7 @@ def execute_query():
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
-    try:
-        # Test database connections
+    try:        # Test database connections
         from models import db, get_database_connection
         from config import AVAILABLE_DATABASES
         
@@ -124,7 +120,7 @@ def health_check():
             try:
                 test_db = get_database_connection(db_name)
                 # Try a simple query to test the connection
-                test_result = test_db.run("SELECT 1")
+                test_db.run("SELECT 1")  # Test database connection
                 db_status[db_name] = "healthy"
             except Exception as e:
                 db_status[db_name] = f"error: {str(e)}"
@@ -216,7 +212,6 @@ def execute_query_with_context():
         data = request.json
         question = data.get('question', '').strip()
         database = data.get('database', 'northwind')
-        use_proper_noun_tool = data.get('use_proper_noun_tool', False)
         recursion_limit = data.get('recursion_limit', RECURSION_LIMIT)
         previous_context = data.get('previous_context', [])
         
@@ -231,7 +226,6 @@ def execute_query_with_context():
         
         # Create agent with the selected database
         agent = DataAnalystAgent(
-            use_proper_noun_tool=use_proper_noun_tool,
             database_name=database
         )
         
