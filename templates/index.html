@@ -292,6 +292,53 @@
                 font-size: 2rem;
             }
         }
+
+        .chart-controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .chart-mapping {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .chart-mapping .input-group {
+            margin-bottom: 0;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .chart-wrapper {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chart-wrapper h3 {
+            margin: 0 0 15px 0;
+            color: #2c3e50;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -376,10 +423,10 @@
                 <div class="result-card">
                     <h2 class="section-title">
                         <span>🎨</span>
-                        Sample Visualization
+                        Data Visualizations
                     </h2>
-                    <div class="chart-container">
-                        <canvas id="sampleChart"></canvas>
+                    <div id="charts-container">
+                        <!-- Charts will be dynamically inserted here -->
                     </div>
                 </div>
             </div>
@@ -388,6 +435,8 @@
 
     <script>
         let currentChart = null;
+        let currentData = null;
+        let charts = [];
 
         function setQuestion(question) {
             document.getElementById('question').value = question;
@@ -420,6 +469,7 @@
             document.getElementById('results').style.display = 'none';
 
             try {
+                console.log("Sending request with:", { question, database, use_proper_noun_tool });  // Debug log
                 const response = await fetch('/api/query', {
                     method: 'POST',
                     headers: {
@@ -433,6 +483,7 @@
                 });
 
                 const data = await response.json();
+                console.log("Received response:", data);  // Debug log
 
                 if (!response.ok) {
                     throw new Error(data.error || 'An error occurred');
@@ -465,6 +516,8 @@
         }
 
         function displayResults(results) {
+            console.log("Received results:", results);  // Debug log
+            
             // Display SQL query
             document.getElementById('sql-query').textContent = results.sql || 'No SQL query generated';
 
@@ -476,17 +529,188 @@
             const descriptionHtml = generateDescriptionDisplay(results.description);
             document.getElementById('analysis-description').innerHTML = descriptionHtml;
 
-            // Create sample chart if data exists
-            if (results.data && results.data.length > 0) {
-                createSampleChart(results.data);
+            // Display charts
+            if (results.charts && results.charts.length > 0) {
+                console.log("Charts data:", results.charts);  // Debug log
+                displayCharts(results.charts);
             } else {
-                // Clear the chart if no data
-                const chartContainer = document.querySelector('.chart-container');
-                chartContainer.innerHTML = '<p style="text-align: center; color: #666; margin-top: 100px;">No data available for visualization</p>';
+                console.log("No charts data available");  // Debug log
+                document.getElementById('charts-container').innerHTML = 
+                    '<p style="text-align: center; color: #666; padding: 20px;">No visualizations available for this data.</p>';
             }
 
             // Show results section
             document.getElementById('results').style.display = 'grid';
+        }
+
+        function displayCharts(chartConfigs) {
+            console.log("Starting to display charts:", chartConfigs);  // Debug log
+            
+            // Destroy any existing charts
+            charts.forEach(chart => chart.destroy());
+            charts = [];
+            
+            // Create container for charts
+            const chartsContainer = document.getElementById('charts-container');
+            chartsContainer.innerHTML = '<div class="charts-grid"></div>';
+            const chartsGrid = chartsContainer.querySelector('.charts-grid');
+            
+            // Create each chart
+            chartConfigs.forEach((config, index) => {
+                try {
+                    console.log(`Processing chart ${index}:`, config);  // Debug log
+                    
+                    // Validate and format the chart data
+                    const formattedConfig = formatChartConfig(config);
+                    console.log(`Formatted config for chart ${index}:`, formattedConfig);  // Debug log
+                    
+                    if (!formattedConfig) {
+                        console.error(`Invalid chart configuration for chart ${index}:`, config);
+                        return;
+                    }
+
+                    // Create wrapper for this chart
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'chart-wrapper';
+                    
+                    // Add title
+                    const title = document.createElement('h3');
+                    title.innerHTML = `<span>${getChartEmoji(formattedConfig.type)}</span>${formattedConfig.title}`;
+                    wrapper.appendChild(title);
+                    
+                    // Add canvas for chart
+                    const canvasContainer = document.createElement('div');
+                    canvasContainer.className = 'chart-container';
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `chart-${index}`;
+                    canvasContainer.appendChild(canvas);
+                    wrapper.appendChild(canvasContainer);
+                    
+                    // Add to grid
+                    chartsGrid.appendChild(wrapper);
+                    
+                    // Create chart
+                    const ctx = canvas.getContext('2d');
+                    const chartConfig = {
+                        type: formattedConfig.type,
+                        data: formattedConfig.data,
+                        options: {
+                            ...formattedConfig.options,
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                ...formattedConfig.options?.plugins,
+                                legend: {
+                                    position: 'top',
+                                    labels: {
+                                        boxWidth: 12,
+                                        font: {
+                                            size: 11
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    
+                    console.log(`Creating chart ${index} with config:`, chartConfig);  // Debug log
+                    const chart = new Chart(ctx, chartConfig);
+                    charts.push(chart);
+                    
+                } catch (error) {
+                    console.error(`Error creating chart ${index}:`, error);
+                }
+            });
+        }
+
+        function formatChartConfig(config) {
+            console.log("Formatting config:", config);  // Debug log
+            
+            if (!config || !config.type || !config.data) {
+                console.error("Invalid config structure:", config);
+                return null;
+            }
+
+            // Ensure datasets is an array of objects
+            let datasets = config.data.datasets;
+            if (!Array.isArray(datasets)) {
+                console.error("Datasets is not an array:", datasets);
+                return null;
+            }
+
+            const formattedConfig = {
+                type: config.type,
+                title: config.title || 'Chart',
+                options: {
+                    ...config.options,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        ...config.options?.plugins,
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    }
+                },
+                data: {
+                    labels: config.data.labels || [],
+                    datasets: datasets.map(dataset => ({
+                        ...dataset,
+                        backgroundColor: dataset.backgroundColor || getColors(
+                            Array.isArray(dataset.data) ? dataset.data.length : 1
+                        )
+                    }))
+                }
+            };
+
+            // Add specific options based on chart type
+            if (config.type === 'bar') {
+                formattedConfig.options.scales = {
+                    ...config.options?.scales,
+                    y: {
+                        beginAtZero: true
+                    }
+                };
+            }
+
+            console.log("Formatted config result:", formattedConfig);  // Debug log
+            return formattedConfig;
+        }
+
+        function getColors(count) {
+            const colors = [
+                '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+                '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'
+            ];
+            
+            if (count <= colors.length) {
+                return colors.slice(0, count);
+            }
+            
+            // If we need more colors, generate them
+            return Array(count).fill().map((_, i) => {
+                const hue = (i * 137.508) % 360; // Use golden angle approximation
+                return `hsl(${hue}, 70%, 60%)`;
+            });
+        }
+
+        function getChartEmoji(chartType) {
+            const emojiMap = {
+                'bar': '📊',
+                'line': '📈',
+                'pie': '🥧',
+                'doughnut': '🍩',
+                'scatter': '📍',
+                'radar': '🕸️',
+                'polarArea': '🎯'
+            };
+            return emojiMap[chartType] || '📊';
         }
 
         function generateDataTable(data) {
@@ -530,82 +754,6 @@
                     <div>${description}</div>
                 </div>
             `;
-        }
-
-        function createSampleChart(data) {
-            if (currentChart) {
-                currentChart.destroy();
-            }
-
-            const ctx = document.getElementById('sampleChart').getContext('2d');
-            
-            // Prepare data for Chart.js
-            const labels = data.map(item => {
-                const key = Object.keys(item)[0];
-                let label = item[key];
-                // Truncate long labels
-                return label && label.length > 15 ? label.substring(0, 15) + '...' : label;
-            });
-            
-            const values = data.map(item => {
-                const keys = Object.keys(item);
-                // Try to find a numeric value
-                for (let key of keys) {
-                    if (typeof item[key] === 'number') {
-                        return item[key];
-                    }
-                }
-                return 0;
-            });
-
-            currentChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Value',
-                        data: values,
-                        backgroundColor: [
-                            '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
-                            '#1abc9c', '#34495e', '#e67e22', '#95a5a6', '#f1c40f'
-                        ],
-                        borderColor: '#2c3e50',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Sample Visualization (Column Chart)',
-                            font: {
-                                size: 16,
-                                weight: 'bold'
-                            }
-                        },
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return value.toLocaleString();
-                                }
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                maxRotation: 45
-                            }
-                        }
-                    }
-                }
-            });
         }
 
         // Initialize

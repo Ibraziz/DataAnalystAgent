@@ -52,7 +52,38 @@ def execute_query():
                 'sql_found': bool(results.get('sql')),
                 'data_rows': len(results.get('data', [])),
                 'has_description': bool(results.get('description'))
-            }
+            },
+            ############## HARDCODED CHART EXAMPLES #############
+            'charts': [
+                {
+                    "type": "bar",
+                    "title": "Sample Bar Chart",
+                    "data": {
+                        "labels": ["Category A", "Category B", "Category C"],
+                        "datasets": [{
+                            "label": "Sample Values",
+                            "data": [100, 200, 300],
+                            "backgroundColor": ["#3498db", "#e74c3c", "#2ecc71"],
+                            "borderColor": ["#3498db", "#e74c3c", "#2ecc71"],
+                            "borderWidth": 1
+                        }]
+                    }
+                },
+                {
+                    "type": "pie",
+                    "title": "Sample Pie Chart",
+                    "data": {
+                        "labels": ["Slice A", "Slice B", "Slice C"],
+                        "datasets": [{
+                            "label": "Sample Data",
+                            "data": [300, 200, 100],
+                            "backgroundColor": ["#3498db", "#e74c3c", "#2ecc71"],
+                            "hoverOffset": 4
+                        }]
+                    }
+                }
+            ]
+            ################ END HARDCODED CHART EXAMPLES #############
         }
         
         print(f"DEBUG: Returning result with {len(results.get('data', []))} rows")
