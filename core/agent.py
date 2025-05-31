@@ -1,7 +1,13 @@
 from typing import List, Dict, Any, Optional
 from langgraph.prebuilt import create_react_agent
+import sys
+import os
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from models import llm, get_database_connection
-from prompts import SYSTEM_MESSAGE, PROPER_NOUN_SUFFIX
+from prompts import SYSTEM_MESSAGE
 from tools import get_sql_tools, create_proper_noun_tool, create_chart_configuration_prompt
 from config import RECURSION_LIMIT
 from .sql_executor import SQLExecutor

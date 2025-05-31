@@ -336,6 +336,34 @@
             width: 100%;
         }
 
+        .misery-quote {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            position: relative;
+            overflow: hidden;
+            height: 1.8em;
+            line-height: 1.4;
+            padding: 0.2em 0;
+            transition: all 0.5s ease;
+        }
+
+        .quote-text {
+            position: absolute;
+            width: 100%;
+            top: 0;
+            left: 0;
+            padding: 0.1em 0;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .quote-text.slide-out {
+            transform: translateY(-100%);
+        }
+
+        .quote-text.slide-in {
+            transform: translateY(100%);
+        }
+
         .no-charts-message {
             text-align: center;
             color: #666;
@@ -344,6 +372,187 @@
             background: #f8f9fa;
             border-radius: 10px;
             border: 2px dashed #ddd;
+        }
+
+        /* Hackathon Stats Styles */
+        .hackathon-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 20px;
+            color: #495057;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: pulse 4s infinite ease-in-out;
+            border: 1px solid #dee2e6;
+        }
+
+        .stat-card:nth-child(2) {
+            background: linear-gradient(135deg, #f1f3f4, #e8eaed);
+            color: #495057;
+            animation-delay: 0.5s;
+        }
+
+        .stat-card:nth-child(3) {
+            background: linear-gradient(135deg, #f5f5f5, #eeeeee);
+            color: #495057;
+            animation-delay: 1s;
+        }
+
+        .stat-card:nth-child(4) {
+            background: linear-gradient(135deg, #fafafa, #f0f0f0);
+            color: #495057;
+            animation-delay: 1.5s;
+        }
+
+        .stat-card:nth-child(5) {
+            background: linear-gradient(135deg, #f9f9f9, #ededed);
+            color: #495057;
+            animation-delay: 2s;
+        }
+
+        .stat-card:nth-child(6) {
+            background: linear-gradient(135deg, #f6f6f6, #e6e6e6);
+            color: #495057;
+            animation-delay: 2.5s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+            animation: countUp 3s ease-out;
+            color: #2c3e50;
+        }
+
+        @keyframes countUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            font-weight: 500;
+            color: #6c757d;
+        }
+
+        .stat-emoji {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            display: block;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+
+        .misery-meter {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 12px;
+            padding: 15px;
+            color: white;
+            text-align: center;
+            grid-column: 1 / -1;
+            margin-top: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .misery-meter::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .misery-bar {
+            background: rgba(255,255,255,0.3);
+            height: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .misery-fill {
+            background: linear-gradient(90deg, #ff6b6b, #feca57, #48cae4);
+            height: 100%;
+            border-radius: 5px;
+            width: 0%;
+            animation: fillMisery 3s ease-out forwards;
+        }
+
+        @keyframes fillMisery {
+            to { width: 97%; }
+        }
+
+        .floating-emoji {
+            position: absolute;
+            font-size: 1.2rem;
+            animation: float 6s ease-in-out infinite;
+            opacity: 0.7;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-10px) rotate(120deg); }
+            66% { transform: translateY(5px) rotate(240deg); }
+        }
+
+        .quick-actions {
+            display: grid;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .quick-btn {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            color: #3498db;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .quick-btn:hover {
+            background: rgba(52, 152, 219, 0.2);
+            transform: translateX(5px);
         }
     </style>
 </head>
@@ -383,23 +592,61 @@
 
             <div class="query-section">
                 <h2 class="section-title">
-                    <span>🎯</span>
-                    Quick Examples
+                    <span>😵‍💫</span>
+                    Hackathon Survival Stats
                 </h2>
                 
-                <div style="display: grid; gap: 10px;">
-                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('Which customers have placed the most orders?')">
-                        Top Customers by Orders
-                    </button>
-                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('What are the monthly sales trends for this year?')">
-                        Monthly Sales Trends
-                    </button>
-                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('Which product categories generate the highest profit margins?')">
-                        Category Profit Analysis
-                    </button>
-                    <button class="btn" style="font-size: 0.9rem; padding: 10px;" onclick="setQuestion('Show me geographic distribution of sales')">
-                        Geographic Sales Distribution
-                    </button>
+                <div class="hackathon-stats">
+                    <div class="stat-card" onclick="wobbleCard(this)">
+                        <span class="stat-emoji">☕</span>
+                        <span class="stat-number" data-target="47">0</span>
+                        <div class="stat-label">Coffees Inhaled</div>
+                    </div>
+                    
+                    <div class="stat-card" onclick="wobbleCard(this)">
+                        <span class="stat-emoji">⚡</span>
+                        <span class="stat-number" data-target="23">0</span>
+                        <div class="stat-label">Energy Drinks</div>
+                    </div>
+                    
+                    <div class="stat-card" onclick="wobbleCard(this)">
+                        <span class="stat-emoji">😴</span>
+                        <span class="stat-number" data-target="3.2">0</span>
+                        <div class="stat-label">Hours Slept</div>
+                    </div>
+                    
+                    <div class="stat-card" onclick="wobbleCard(this)">
+                        <span class="stat-emoji">🧱</span>
+                        <span class="stat-number" data-target="127">0</span>
+                        <div class="stat-label">Wall Staring (min)</div>
+                    </div>
+                    
+                    <div class="stat-card" onclick="wobbleCard(this)">
+                        <span class="stat-emoji">🐛</span>
+                        <span class="stat-number" data-target="∞">0</span>
+                        <div class="stat-label">Bugs Created</div>
+                    </div>
+                    
+                    <div class="stat-card" onclick="wobbleCard(this)">
+                        <span class="stat-emoji">🙏</span>
+                        <span class="stat-number" data-target="99.9">0</span>
+                        <div class="stat-label">Hope Lost (%)</div>
+                    </div>
+                </div>
+
+                <div class="misery-meter">
+                    <div style="font-weight: bold; margin-bottom: 5px;">
+                        😭 Collective Misery Level 😭
+                    </div>
+                    <div class="misery-bar">
+                        <div class="misery-fill"></div>
+                    </div>
+                    <div class="misery-quote">
+                        <div class="quote-text visible">"It works on my machine" - Famous last words</div>
+                    </div>
+                    <div class="floating-emoji" style="top: 10px; right: 20px;">💀</div>
+                    <div class="floating-emoji" style="top: 30px; left: 30px; animation-delay: 1s;">🔥</div>
+                    <div class="floating-emoji" style="top: 15px; right: 50px; animation-delay: 2s;">💻</div>
                 </div>
             </div>
 
@@ -437,6 +684,112 @@
     <script>
         let charts = [];
 
+        // Animate number counting on load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('question').focus();
+            setTimeout(animateStats, 500);
+        });
+
+        function animateStats() {
+            const statNumbers = document.querySelectorAll('.stat-number');
+            
+            statNumbers.forEach((stat, index) => {
+                const target = stat.getAttribute('data-target');
+                if (target === '∞') {
+                    setTimeout(() => {
+                        stat.textContent = '∞';
+                    }, index * 200);
+                    return;
+                }
+                
+                const targetNum = parseFloat(target);
+                const duration = 2000;
+                const startTime = Date.now();
+                
+                setTimeout(() => {
+                    const timer = setInterval(() => {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        
+                        // Easing function for smooth animation
+                        const easeOut = 1 - Math.pow(1 - progress, 3);
+                        const current = targetNum * easeOut;
+                        
+                        if (targetNum % 1 === 0) {
+                            stat.textContent = Math.floor(current);
+                        } else {
+                            stat.textContent = current.toFixed(1);
+                        }
+                        
+                        if (progress >= 1) {
+                            clearInterval(timer);
+                            stat.textContent = target;
+                        }
+                    }, 16);
+                }, index * 200);
+            });
+        }
+
+        function wobbleCard(card) {
+            card.style.animation = 'none';
+            setTimeout(() => {
+                card.style.animation = 'pulse 4s infinite ease-in-out';
+            }, 10);
+            
+            // Add a fun wobble effect
+            card.style.transform = 'scale(0.95) rotate(1deg)';
+            setTimeout(() => {
+                card.style.transform = '';
+            }, 150);
+            
+            // Random encouraging messages
+            const messages = [
+                "💪 Keep going, champ!",
+                "🚀 You got this!",
+                "⭐ Almost there!",
+                "🔥 On fire!",
+                "🎯 Nailed it!",
+                "✨ Magic happening!"
+            ];
+            
+            const tooltip = document.createElement('div');
+            tooltip.textContent = messages[Math.floor(Math.random() * messages.length)];
+            tooltip.style.cssText = `
+                position: absolute;
+                top: -40px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #333;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 5px;
+                font-size: 0.8rem;
+                white-space: nowrap;
+                pointer-events: none;
+                z-index: 1000;
+                animation: fadeInOut 2s ease-in-out;
+            `;
+            
+            card.style.position = 'relative';
+            card.appendChild(tooltip);
+            
+            setTimeout(() => {
+                if (tooltip.parentNode) {
+                    tooltip.remove();
+                }
+            }, 2000);
+        }
+
+        // Add CSS animation for tooltip
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeInOut {
+                0%, 100% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+                50% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
         function setQuestion(question) {
             document.getElementById('question').value = question;
         }
@@ -467,7 +820,7 @@
             document.getElementById('results').style.display = 'none';
 
             try {
-                console.log("Sending request with:", { question, database, use_proper_noun_tool });
+                console.log("Sending request with:", { question, database });
                 const response = await fetch('/api/query', {
                     method: 'POST',
                     headers: {
@@ -579,9 +932,6 @@
                     
                     // Add canvas for chart
                     const canvasContainer = document.createElement('div');
-                    canvasContainer.className = 'chart-container';
-                    const canvas = document.createElement('canvas');
-                    canvas.id = `chart-${index}`;
                     canvasContainer.appendChild(canvas);
                     wrapper.appendChild(canvasContainer);
                     
@@ -682,17 +1032,78 @@
             `;
         }
 
-        // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('question').focus();
-        });
-
         // Allow Enter key to trigger analysis (Ctrl+Enter or Cmd+Enter)
         document.getElementById('question').addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 executeQuery();
             }
         });
+
+        // Add some fun random updates to stats every few seconds
+        setInterval(() => {
+            const coffeeCard = document.querySelector('.stat-card .stat-number[data-target="47"]');
+            const currentCoffee = parseInt(coffeeCard.textContent);
+            if (Math.random() < 0.1) { // 10% chance every interval
+                coffeeCard.textContent = currentCoffee + 1;
+                coffeeCard.parentElement.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    coffeeCard.parentElement.style.transform = '';
+                }, 200);
+            }
+        }, 5000);
+
+        // Random misery quotes with sliding animation
+        const miseryQuotes = [
+            "\"It works on my machine\" - Famous last words",
+            "\"Just one more console.log()\" - 3 hours ago",
+            "\"This should be easy\" - Narrator: It wasn't",
+            "\"Let's just try turning it off and on again\"",
+            "\"Why is there a semicolon there?\" - Ancient mysteries",
+            "\"I'll just fix this one tiny bug...\" - 6 bugs later",
+            "\"Coffee is a vegetable, right?\" - Hackathon nutrition",
+            "\"Sleep is for the weak\" - The walking dead",
+            "\"Rubber duck debugging is real\" - Quack quack",
+            "\"Have you tried Stack Overflow?\" - The eternal question",
+            "\"It's not a bug, it's a feature\" - Marketing spin",
+            "\"Works fine in production\" - Deployment disasters",
+            "\"Just push to main, what could go wrong?\" - Version control chaos",
+            "\"I'm sure no one will notice\" - They noticed",
+            "\"Let's ship it and fix it later\" - Technical debt accumulates"
+        ];
+
+        let currentQuoteIndex = 0;
+
+        function rotateQuote() {
+            const quoteContainer = document.querySelector('.misery-quote');
+            const currentQuote = document.querySelector('.quote-text');
+            
+            if (!quoteContainer || !currentQuote) return;
+            
+            // Slide current quote out (up)
+            currentQuote.classList.add('slide-out');
+            currentQuote.classList.remove('visible');
+            
+            setTimeout(() => {
+                // Update to next quote
+                currentQuoteIndex = (currentQuoteIndex + 1) % miseryQuotes.length;
+                currentQuote.textContent = miseryQuotes[currentQuoteIndex];
+                
+                // Reset position to slide in from bottom
+                currentQuote.classList.remove('slide-out');
+                currentQuote.classList.add('slide-in');
+                
+                // Small delay then slide into view
+                setTimeout(() => {
+                    currentQuote.classList.remove('slide-in');
+                    currentQuote.classList.add('visible');
+                }, 50);
+            }, 250); // Half the transition duration
+        }
+
+        // Start quote rotation after initial load
+        setTimeout(() => {
+            setInterval(rotateQuote, 5000); // Change every 5 seconds
+        }, 3000); // Wait 3 seconds before starting rotation
     </script>
 </body>
 </html>

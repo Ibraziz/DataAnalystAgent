@@ -321,6 +321,47 @@ def generate_summary_only():
             'details': error_details
         }), 500
 
+@app.route('/api/dataset_overview', methods=['GET'])
+def get_dataset_overview():
+    """Get an overview of the specified database using the LLM."""
+    try:
+        database = request.args.get('database', 'northwind')  # Default to northwind
+        
+        print(f"\n{'='*60}")
+        print(f"GENERATING DATASET OVERVIEW FOR: {database}")
+        print(f"{'='*60}")
+        
+        # Create agent with the selected database
+        agent = DataAnalystAgent(database_name=database)
+        
+        # Generate overview using a predefined question
+        results = agent.execute_with_results(
+            question="Give me a comprehensive overview of this database. Include information about the tables, their relationships, and some key statistics. Make it informative for a business user.",
+            generate_summary=True
+        )
+        
+        # Return structured response
+        result = {
+            'success': True,
+            'database': database,
+            'overview': results.get('description', ''),
+            'charts': results.get('charts', []),
+            'debug_info': {
+                'has_description': bool(results.get('description')),
+                'charts_count': len(results.get('charts', []))
+            }
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"ERROR in get_dataset_overview: {error_details}")
+        return jsonify({
+            'error': f'An error occurred: {str(e)}',
+            'details': error_details
+        }), 500
+
 # Create templates directory if it doesn't exist
 if not os.path.exists('templates'):
     os.makedirs('templates')
