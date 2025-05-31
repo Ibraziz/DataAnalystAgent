@@ -41,3 +41,37 @@ EMBEDDING_MODEL = "models/embedding-001"
 TOP_K_RESULTS = 5
 DIALECT = "SQLite"
 RECURSION_LIMIT = 50  # Default recursion limit for LangGraph agents
+
+
+def get_chart_template(chart_type, labels, datasets_labels, datasets_data, title, y_begin_at_zero=True, x_begin_at_zero=True, stacked=False, index_axis="x"):
+        template =  {
+            "type": chart_type,
+            "title": title,
+            "data": {
+                "labels": labels,
+                "datasets": [{
+                    "label": datasets_labels,
+                    "data": datasets_data,
+                    "backgroundColor": ["#3498db", "#e74c3c", "#2ecc71"],
+                    "borderColor": ["#3498db", "#e74c3c", "#2ecc71"],
+                    "borderWidth": 1
+                }]  
+            }
+        }
+
+        if chart_type != "pie" and chart_type != "polarArea":
+            template["options"] = {
+                "scales": {
+                    "y": {
+                        "beginAtZero": y_begin_at_zero,
+                        "stacked": stacked,
+                    },
+                    "x": {
+                        "beginAtZero": x_begin_at_zero,
+                        "stacked": stacked,
+                    }
+                },            
+                "indexAxis": index_axis,
+            }
+        
+        return template

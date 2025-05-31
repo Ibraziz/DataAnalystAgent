@@ -4,7 +4,7 @@ from flask_cors import CORS
 import traceback
 import os
 from agent import create_agent, execute_agent_with_results
-from config import RECURSION_LIMIT
+from config import RECURSION_LIMIT, get_chart_template
 
 app = Flask(__name__)
 CORS(app)
@@ -54,37 +54,7 @@ def execute_query():
                 'data_rows': len(results.get('data', [])),
                 'has_description': bool(results.get('description'))
             },
-            ############## HARDCODED CHART EXAMPLES #############
-            'charts': [
-                {
-                    "type": "bar",
-                    "title": "Sample Bar Chart",
-                    "data": {
-                        "labels": ["Category A", "Category B", "Category C"],
-                        "datasets": [{
-                            "label": "Sample Values",
-                            "data": [100, 200, 300],
-                            "backgroundColor": ["#3498db", "#e74c3c", "#2ecc71"],
-                            "borderColor": ["#3498db", "#e74c3c", "#2ecc71"],
-                            "borderWidth": 1
-                        }]
-                    }
-                },
-                {
-                    "type": "pie",
-                    "title": "Sample Pie Chart",
-                    "data": {
-                        "labels": ["Slice A", "Slice B", "Slice C"],
-                        "datasets": [{
-                            "label": "Sample Data",
-                            "data": [300, 200, 100],
-                            "backgroundColor": ["#3498db", "#e74c3c", "#2ecc71"],
-                            "hoverOffset": 4
-                        }]
-                    }
-                }
-            ]
-            ################ END HARDCODED CHART EXAMPLES #############
+            'chart_properties': get_chart_template('bar', ['Category A', 'Category B', 'Category C'], 'Sample Values', [100, 200, 300], 'Sample Bar Chart')
         }
         
         print(f"DEBUG: Returning result with {len(results.get('data', []))} rows")

@@ -516,7 +516,7 @@
         }
 
         function displayResults(results) {
-            console.log("Received results:", results);  // Debug log
+            console.log("Received results:", results);
             
             // Display SQL query
             document.getElementById('sql-query').textContent = results.sql || 'No SQL query generated';
@@ -529,12 +529,12 @@
             const descriptionHtml = generateDescriptionDisplay(results.description);
             document.getElementById('analysis-description').innerHTML = descriptionHtml;
 
-            // Display charts
-            if (results.charts && results.charts.length > 0) {
-                console.log("Charts data:", results.charts);  // Debug log
-                displayCharts(results.charts);
+            // Display charts based on chart_properties
+            if (results.chart_properties && Object.keys(results.chart_properties).length > 0) {
+                console.log("Chart properties:", results.chart_properties);
+                const chartConfigs = createChartsFromProperties(results.chart_properties);
+                displayCharts(chartConfigs);
             } else {
-                console.log("No charts data available");  // Debug log
                 document.getElementById('charts-container').innerHTML = 
                     '<p style="text-align: center; color: #666; padding: 20px;">No visualizations available for this data.</p>';
             }
@@ -543,9 +543,81 @@
             document.getElementById('results').style.display = 'grid';
         }
 
-        function displayCharts(chartConfigs) {
-            console.log("Starting to display charts:", chartConfigs);  // Debug log
+        function createChartsFromProperties(chartProperties) {
+            const chartConfigs = [];
             
+            // Handle single chart properties
+            if (chartProperties.type) {
+                chartConfigs.push(createSingleChartConfig(chartProperties));
+            } 
+            // Handle multiple chart properties
+            else {
+                for (const [key, props] of Object.entries(chartProperties)) {
+                    if (props.type) {
+                        chartConfigs.push(createSingleChartConfig(props));
+                    }
+                }
+            }
+            
+            return chartConfigs;
+        }
+
+        function createSingleChartConfig(props) {
+            const config = {
+                type: props.type,
+                title: props.title || 'Chart',
+                data: {
+                    labels: props.data?.labels || [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Add datasets
+            if (props.data?.datasets) {
+                config.data.datasets = props.data.datasets.map(dataset => ({
+                    label: dataset.label,
+                    data: dataset.data,
+                    backgroundColor: dataset.backgroundColor || getColors(dataset.data.length),
+                    borderColor: dataset.borderColor || dataset.backgroundColor || getColors(dataset.data.length),
+                    borderWidth: dataset.borderWidth || 1
+                }));
+            }
+
+            // Add specific options based on chart type
+            if (props.type !== 'pie' && props.type !== 'polarArea') {
+                config.options.scales = {
+                    y: {
+                        beginAtZero: props.y_begin_at_zero !== undefined ? props.y_begin_at_zero : true,
+                        stacked: props.stacked || false
+                    },
+                    x: {
+                        beginAtZero: props.x_begin_at_zero !== undefined ? props.x_begin_at_zero : true,
+                        stacked: props.stacked || false
+                    }
+                };
+
+                if (props.index_axis) {
+                    config.options.indexAxis = props.index_axis;
+                }
+            }
+
+            return config;
+        }
+
+        function displayCharts(chartConfigs) {
             // Destroy any existing charts
             charts.forEach(chart => chart.destroy());
             charts = [];
@@ -558,24 +630,13 @@
             // Create each chart
             chartConfigs.forEach((config, index) => {
                 try {
-                    console.log(`Processing chart ${index}:`, config);  // Debug log
-                    
-                    // Validate and format the chart data
-                    const formattedConfig = formatChartConfig(config);
-                    console.log(`Formatted config for chart ${index}:`, formattedConfig);  // Debug log
-                    
-                    if (!formattedConfig) {
-                        console.error(`Invalid chart configuration for chart ${index}:`, config);
-                        return;
-                    }
-
                     // Create wrapper for this chart
                     const wrapper = document.createElement('div');
                     wrapper.className = 'chart-wrapper';
                     
                     // Add title
                     const title = document.createElement('h3');
-                    title.innerHTML = `<span>${getChartEmoji(formattedConfig.type)}</span>${formattedConfig.title}`;
+                    title.innerHTML = `<span>${getChartEmoji(config.type)}</span>${config.title}`;
                     wrapper.appendChild(title);
                     
                     // Add canvas for chart
@@ -591,96 +652,25 @@
                     
                     // Create chart
                     const ctx = canvas.getContext('2d');
-                    const chartConfig = {
-                        type: formattedConfig.type,
-                        data: formattedConfig.data,
-                        options: {
-                            ...formattedConfig.options,
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                ...formattedConfig.options?.plugins,
-                                legend: {
-                                    position: 'top',
-                                    labels: {
-                                        boxWidth: 12,
-                                        font: {
-                                            size: 11
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    };
-                    
-                    console.log(`Creating chart ${index} with config:`, chartConfig);  // Debug log
-                    const chart = new Chart(ctx, chartConfig);
+                    const chart = new Chart(ctx, config);
                     charts.push(chart);
-                    
                 } catch (error) {
                     console.error(`Error creating chart ${index}:`, error);
                 }
             });
         }
 
-        function formatChartConfig(config) {
-            console.log("Formatting config:", config);  // Debug log
-            
-            if (!config || !config.type || !config.data) {
-                console.error("Invalid config structure:", config);
-                return null;
-            }
-
-            // Ensure datasets is an array of objects
-            let datasets = config.data.datasets;
-            if (!Array.isArray(datasets)) {
-                console.error("Datasets is not an array:", datasets);
-                return null;
-            }
-
-            const formattedConfig = {
-                type: config.type,
-                title: config.title || 'Chart',
-                options: {
-                    ...config.options,
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        ...config.options?.plugins,
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                boxWidth: 12,
-                                font: {
-                                    size: 11
-                                }
-                            }
-                        }
-                    }
-                },
-                data: {
-                    labels: config.data.labels || [],
-                    datasets: datasets.map(dataset => ({
-                        ...dataset,
-                        backgroundColor: dataset.backgroundColor || getColors(
-                            Array.isArray(dataset.data) ? dataset.data.length : 1
-                        )
-                    }))
-                }
+        function getChartEmoji(chartType) {
+            const emojiMap = {
+                'bar': '📊',
+                'line': '📈',
+                'pie': '🥧',
+                'doughnut': '🍩',
+                'scatter': '📍',
+                'radar': '🕸️',
+                'polarArea': '🎯'
             };
-
-            // Add specific options based on chart type
-            if (config.type === 'bar') {
-                formattedConfig.options.scales = {
-                    ...config.options?.scales,
-                    y: {
-                        beginAtZero: true
-                    }
-                };
-            }
-
-            console.log("Formatted config result:", formattedConfig);  // Debug log
-            return formattedConfig;
+            return emojiMap[chartType] || '📊';
         }
 
         function getColors(count) {
@@ -698,19 +688,6 @@
                 const hue = (i * 137.508) % 360; // Use golden angle approximation
                 return `hsl(${hue}, 70%, 60%)`;
             });
-        }
-
-        function getChartEmoji(chartType) {
-            const emojiMap = {
-                'bar': '📊',
-                'line': '📈',
-                'pie': '🥧',
-                'doughnut': '🍩',
-                'scatter': '📍',
-                'radar': '🕸️',
-                'polarArea': '🎯'
-            };
-            return emojiMap[chartType] || '📊';
         }
 
         function generateDataTable(data) {
@@ -756,8 +733,9 @@
             `;
         }
 
-        // Initialize
+        // Initialize with example question
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus on question input
             document.getElementById('question').focus();
         });
     </script>
