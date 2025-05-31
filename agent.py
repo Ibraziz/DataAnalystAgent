@@ -8,6 +8,19 @@ from config import RECURSION_LIMIT, DIALECT
 import json
 import re
 
+# UPDATED APPROACH - SIMPLIFIED SQL EXECUTION
+# ==========================================
+# 
+# The previous implementation was complex and tried to parse AI messages for data.
+# The new approach is much cleaner:
+# 
+# 1. Extract SQL query from LLM's tool calls (extract_sql_query_from_messages)
+# 2. Execute the query directly on the database connection (execute_sql_query)
+# 3. Parse the results cleanly using existing column extraction logic
+# 
+# This eliminates the need to parse complex AI message formats and makes
+# the data extraction much more reliable and easier to debug.
+
 def create_agent(use_proper_noun_tool=False, database_name=None):
     """Create an agent with the specified configuration."""
     # Get the appropriate database connection
@@ -48,7 +61,7 @@ def execute_agent(agent, question, recursion_limit=None):
 
 
 
-def execute_agent_with_results(agent, question, database_connection=None, recursion_limit=None):
+def execute_agent_with_results(agent, question, database_connection=None, recursion_limit=None, previous_context=None, generate_summary=False):
     """Execute agent and return clean structured results with SQL, description, and data."""
     if recursion_limit is None:
         recursion_limit = RECURSION_LIMIT
@@ -56,49 +69,13 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
     try:
         # First, let the agent explore the database and generate the query
         messages = execute_agent(agent, question, recursion_limit)
-          # Extract SQL query, data from the agent's messages
-        sql_query = ""
-        data = []
         
-        # Look through messages to find SQL query and results
-        for msg in messages:
-            if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                # Look for SQL query tool calls
-                for tool_call in msg.tool_calls:
-                    if tool_call.get('name') == 'sql_db_query' and 'query' in tool_call.get('args', {}):
-                        sql_query = tool_call['args']['query']
-            elif hasattr(msg, 'name') and msg.name == 'sql_db_query':
-                # This is a tool result message with query results
-                try:
-                    # Parse the results - they come as a string representation of list of tuples
-                    import ast
-                    parsed_result = ast.literal_eval(msg.content)
-                    if isinstance(parsed_result, list):
-                        # Convert to list of dictionaries
-                        column_names = extract_column_names(sql_query) if sql_query else []
-                        data = []
-                        for row in parsed_result:
-                            if isinstance(row, (list, tuple)) and column_names:
-                                row_dict = {}
-                                for i, col_name in enumerate(column_names):
-                                    if i < len(row):
-                                        row_dict[col_name] = row[i]
-                                data.append(row_dict)
-                            elif isinstance(row, dict):
-                                data.append(row)
-                        
-                        # If no column names found, create generic ones                        if not column_names and data and isinstance(parsed_result[0], (list, tuple)):
-                            column_names = [f'Column_{i+1}' for i in range(len(parsed_result[0]))]
-                            data = []
-                            for row in parsed_result:
-                                row_dict = {}
-                                for i, col_name in enumerate(column_names):
-                                    if i < len(row):
-                                        row_dict[col_name] = row[i]
-                                data.append(row_dict)
-                except (ValueError, SyntaxError):
-                    pass        # If no data was extracted from tool messages but we have a SQL query, try executing it
-        if not data and sql_query:
+        # Extract SQL query from the agent's messages - much simpler approach
+        sql_query = extract_sql_query_from_messages(messages)
+        
+        # Execute the query directly on the database connection
+        data = []
+        if sql_query:
             data = execute_sql_query(sql_query, database_connection)
         
         # Extract the initial description from the agent's messages
@@ -118,21 +95,41 @@ def execute_agent_with_results(agent, question, database_connection=None, recurs
             sql_query=sql_query,
             data=data,
             database_connection=database_connection,
-            previous_description=initial_description
+            previous_description=initial_description,
+            previous_context=previous_context
         )
         
-        return {
+        # Prepare the result dictionary
+        result = {
             'sql': sql_query,
             'description': enhanced_description,
-            'data': data
+            'data': data,
+            'question': question  # Add the question to the result for context
         }
         
+        # Generate contextual summary if requested
+        if generate_summary:
+            summary = generate_contextual_summary(
+                current_analysis=result,
+                previous_context=previous_context,
+                original_question=question
+            )
+            result['summary'] = summary        
+        return result
+        
     except Exception as e:
-        return {
+        result = {
             'sql': '',
             'description': f'Error occurred: {str(e)}',
-            'data': []
+            'data': [],
+            'question': question
         }
+        
+        # Add empty summary if requested
+        if generate_summary:
+            result['summary'] = f'Unable to generate summary due to error: {str(e)}'
+        
+        return result
 
 
 
@@ -182,19 +179,21 @@ def execute_sql_query(sql_query, database_connection=None):
                     return data
             except (ValueError, SyntaxError):
                 pass
-        
-        # If result is a list of tuples, convert it
+          # If result is a list of tuples, convert it
         if isinstance(result, list) and result and isinstance(result[0], (list, tuple)):
             column_names = extract_column_names(sql_query)
             
+            # If no column names found, create generic ones
+            if not column_names:
+                column_names = [f'Column_{i+1}' for i in range(len(result[0]))]
+            
             data = []
             for row in result:
-                if column_names:
-                    row_dict = {}
-                    for i, col_name in enumerate(column_names):
-                        if i < len(row):
-                            row_dict[col_name] = row[i]
-                    data.append(row_dict)
+                row_dict = {}
+                for i, col_name in enumerate(column_names):
+                    if i < len(row):
+                        row_dict[col_name] = row[i]
+                data.append(row_dict)
             
             return data
         
@@ -464,10 +463,10 @@ def extract_description(text):
     
     return description if description else "Query executed successfully"
 
-def generate_enhanced_insights(original_question, sql_query, data, database_connection=None, previous_description=None):
+def generate_enhanced_insights(original_question, sql_query, data, database_connection=None, previous_description=None, previous_context=None):
     """
     Generate enhanced insights by prompting the LLM to find additional interesting information
-    related to the original query results.
+    related to the original query results, then generate a contextual summary.
     """
     try:
         if not data or not sql_query:
@@ -529,8 +528,7 @@ Generate enhanced insights and analysis based on this information.
                 if not hasattr(msg, 'tool_calls') or not msg.tool_calls:
                     enhanced_description = msg.content.strip()
                     break
-        
-        # Clean up the description if we found one
+          # Clean up the description if we found one
         if enhanced_description:
             # Remove SQL code blocks and tool call references (more gentle cleaning)
             enhanced_description = re.sub(r'```sql.*?```', '', enhanced_description, flags=re.DOTALL | re.IGNORECASE)
@@ -553,10 +551,115 @@ Generate enhanced insights and analysis based on this information.
                             enhanced_description = backup_desc
                             break
         
-        return enhanced_description if enhanced_description and len(enhanced_description) > 10 else "Analysis completed successfully with the provided data."
+        # Create current analysis dictionary for contextual summary
+        current_analysis = {
+            'sql': sql_query,
+            'description': enhanced_description if enhanced_description and len(enhanced_description) > 10 else "Analysis completed successfully with the provided data.",
+            'data': data,
+            'question': original_question
+        }
+          # Generate contextual summary using the enhanced insights
+        contextual_summary = generate_contextual_summary(
+            current_analysis=current_analysis,
+            previous_context=previous_context,  # Use the passed parameter
+            original_question=original_question
+        )
+        
+        return contextual_summary
         
     except Exception as e:
         return f"Unable to generate enhanced insights: {str(e)}"
+
+def generate_contextual_summary(current_analysis, previous_context=None, original_question=None):
+    """
+    Generate a comprehensive summary by combining current analysis with previous context.
+    
+    Args:
+        current_analysis (dict): Current analysis results with 'sql', 'description', 'data'
+        previous_context (list): List of previous analysis results or context
+        original_question (str): The original user question
+    
+    Returns:
+        str: A comprehensive summary combining all information
+    """
+    try:
+        # Prepare the context for the summary prompt
+        context_parts = []
+        
+        if original_question:
+            context_parts.append(f"Original Question: {original_question}")
+        
+        # Add previous context if available
+        if previous_context:
+            context_parts.append("\n=== Previous Context ===")
+            if isinstance(previous_context, list):
+                for i, context_item in enumerate(previous_context, 1):
+                    if isinstance(context_item, dict):
+                        context_parts.append(f"\nPrevious Analysis {i}:")
+                        if context_item.get('question'):
+                            context_parts.append(f"Question: {context_item['question']}")
+                        if context_item.get('description'):
+                            context_parts.append(f"Findings: {context_item['description']}")
+                        if context_item.get('sql'):
+                            context_parts.append(f"Query Used: {context_item['sql']}")
+                    elif isinstance(context_item, str):
+                        context_parts.append(f"\nPrevious Context {i}: {context_item}")
+            else:
+                context_parts.append(f"\nPrevious Context: {previous_context}")
+        
+        # Add current analysis
+        context_parts.append("\n=== Current Analysis ===")
+        if current_analysis.get('description'):
+            context_parts.append(f"Current Findings: {current_analysis['description']}")
+        if current_analysis.get('sql'):
+            context_parts.append(f"Current Query: {current_analysis['sql']}")
+        
+        # Create data summary for context
+        current_data = current_analysis.get('data', [])
+        if current_data:
+            if len(current_data) <= 3:
+                data_summary = current_data
+            else:
+                data_summary = current_data[:2] + [{"...": f"and {len(current_data) - 2} more rows"}]
+            context_parts.append(f"Current Data Sample: {json.dumps(data_summary, indent=2)}")
+        
+        context_string = "\n".join(context_parts)
+        
+        # Create summary prompt
+        summary_prompt = f"""
+You data analyst creating a comprehensive concise summary. 
+
+Your task is to analyze all the provided information and create a cohesive, insightful summary that:
+- start your words by explaining what the query do, then continue to other findings
+- Focus on business value and actionable insights
+- Highlight any contradictions or confirmations between previous and current findings
+- Use specific data points and numbers to support your conclusions
+- Keep the summary concise but comprehensive (aim for 2-3 paragraphs)
+- Avoid repeating the same information - synthesize and add value
+
+Context and Data:
+{context_string}
+
+Generate a comprehensive executive summary based on all the above information, provide the information in a clear form as a human.
+"""
+        
+        # Use the LLM to generate the summary
+        from models import llm
+        response = llm.invoke(summary_prompt)
+        
+        if hasattr(response, 'content'):
+            summary = response.content.strip()
+        else:
+            summary = str(response).strip()
+        
+        # Clean up the summary
+        summary = re.sub(r'\n\s*\n', '\n\n', summary)  # Clean up extra whitespace
+        
+        return summary if summary else "Summary generation completed successfully."
+        
+    except Exception as e:
+        return f"Unable to generate contextual summary: {str(e)}"
+
 
 # Backwards compatibility
 def execute_agent_original(agent, question, recursion_limit=None):
@@ -570,3 +673,19 @@ def execute_agent_original(agent, question, recursion_limit=None):
         config={"recursion_limit": recursion_limit}
     ):
         step["messages"][-1].pretty_print()
+
+def extract_sql_query_from_messages(messages):
+    """Extract the SQL query from agent messages - simpler approach."""
+    sql_query = ""
+    
+    # Look through messages to find SQL query tool calls
+    for msg in messages:
+        if hasattr(msg, 'tool_calls') and msg.tool_calls:
+            # Look for SQL query tool calls
+            for tool_call in msg.tool_calls:
+                if tool_call.get('name') == 'sql_db_query' and 'query' in tool_call.get('args', {}):
+                    sql_query = tool_call['args']['query']
+                    # Return the last (most recent) SQL query found
+                    # This ensures we get the final working query if the agent tried multiple times
+    
+    return sql_query
