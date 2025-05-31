@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQL Data Analytics Agent</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -222,12 +223,122 @@
             color: #2c3e50;
             display: flex;
             align-items: center;
-        }
-
-        .analysis-description div {
+        }        .analysis-description div {
             color: #34495e;
             line-height: 1.6;
             white-space: pre-wrap;
+        }
+
+        /* Markdown rendering styles */
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+            margin-top: 20px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .markdown-content h1 { font-size: 1.8rem; border-bottom: 2px solid #3498db; padding-bottom: 8px; }
+        .markdown-content h2 { font-size: 1.5rem; border-bottom: 1px solid #ecf0f1; padding-bottom: 6px; }
+        .markdown-content h3 { font-size: 1.3rem; }
+        .markdown-content h4 { font-size: 1.1rem; }
+        .markdown-content h5 { font-size: 1rem; }
+        .markdown-content h6 { font-size: 0.9rem; }
+
+        .markdown-content p {
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+            margin-bottom: 12px;
+            padding-left: 20px;
+        }
+
+        .markdown-content li {
+            margin-bottom: 6px;
+            line-height: 1.5;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #3498db;
+            margin: 16px 0;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+        }
+
+        .markdown-content code {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .markdown-content pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .markdown-content th,
+        .markdown-content td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .markdown-content th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .markdown-content strong {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .markdown-content em {
+            font-style: italic;
+            color: #5d6d7e;
+        }
+
+        .markdown-content a {
+            color: #3498db;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .markdown-content a:hover {
+            border-bottom-color: #3498db;
         }
 
         .chart-container {
@@ -929,9 +1040,11 @@
                         title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartConfig.title}`;
                         wrapper.appendChild(title);
                     }
-                    
-                    // Add canvas for chart
+                      // Add canvas for chart
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `chart-${index}`;
                     const canvasContainer = document.createElement('div');
+                    canvasContainer.className = 'chart-container';
                     canvasContainer.appendChild(canvas);
                     wrapper.appendChild(canvasContainer);
                     
@@ -1014,11 +1127,18 @@
 
             html += '</tbody></table>';
             return html;
-        }
-
-        function generateDescriptionDisplay(description) {
+        }        function generateDescriptionDisplay(description) {
             if (!description || description.trim() === '') {
                 return '<div class="no-charts">📝 No description available.</div>';
+            }
+            
+            // Parse markdown to HTML
+            let renderedHtml;
+            try {
+                renderedHtml = marked.parse(description);
+            } catch (error) {
+                console.warn('Markdown parsing failed, falling back to plain text:', error);
+                renderedHtml = description.replace(/\n/g, '<br>');
             }
             
             return `
@@ -1027,7 +1147,7 @@
                         <span style="margin-right: 8px;">📝</span>
                         Analysis Summary
                     </h3>
-                    <div>${description}</div>
+                    <div class="markdown-content">${renderedHtml}</div>
                 </div>
             `;
         }
