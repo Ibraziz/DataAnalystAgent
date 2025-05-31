@@ -3,7 +3,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import traceback
 import os
-from agent import create_agent, execute_agent_with_results
+from core import DataAnalystAgent
 from config import RECURSION_LIMIT, get_chart_template
 
 app = Flask(__name__)
@@ -37,22 +37,22 @@ def execute_query():
         if previous_context:
             print(f"Previous context items: {len(previous_context) if isinstance(previous_context, list) else 1}")
         print(f"{'='*60}")
-          # Create agent with the selected database
-        agent = create_agent(use_proper_noun_tool=use_proper_noun_tool, database_name=database)
         
-        # Get the database connection for passing to the execution function
-        from models import get_database_connection
-        db_connection = get_database_connection(database)
-          # Execute agent and get structured results with optional summary
-        results = execute_agent_with_results(
-            agent, 
-            question, 
-            db_connection, 
-            recursion_limit,
+        # Create agent with the selected database
+        agent = DataAnalystAgent(
+            use_proper_noun_tool=use_proper_noun_tool,
+            database_name=database
+        )
+        
+        # Execute agent and get structured results with optional summary
+        results = agent.execute_with_results(
+            question=question,
+            recursion_limit=recursion_limit,
             previous_context=previous_context,
             generate_summary=generate_summary
         )
-          # Return structured response
+        
+        # Return structured response
         result = {
             'success': True,
             'question': question,
@@ -106,18 +106,15 @@ def execute_query_with_context():
         print(f"{'='*60}")
         
         # Create agent with the selected database
-        agent = create_agent(use_proper_noun_tool=use_proper_noun_tool, database_name=database)
-        
-        # Get the database connection
-        from models import get_database_connection
-        db_connection = get_database_connection(database)
+        agent = DataAnalystAgent(
+            use_proper_noun_tool=use_proper_noun_tool,
+            database_name=database
+        )
         
         # Execute agent with context and summary generation
-        results = execute_agent_with_results(
-            agent, 
-            question, 
-            db_connection, 
-            recursion_limit,
+        results = agent.execute_with_results(
+            question=question,
+            recursion_limit=recursion_limit,
             previous_context=previous_context,
             generate_summary=True  # Always generate summary for this endpoint
         )
