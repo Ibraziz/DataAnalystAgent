@@ -32,7 +32,7 @@ class InsightGenerator:
             print(f"DEBUG: Enhanced insights - Previous description length: {len(previous_description) if previous_description else 0}")
             
             # If we already have a substantial previous description, only generate charts
-            if previous_description and len(previous_description) > 200:
+            if previous_description and len(previous_description) > 1000:
                 print("DEBUG: Substantial previous description exists, generating charts only")
                 chart_result = self._generate_charts_only(original_question, sql_query, data, previous_description)
                 # Return empty description to preserve the original
@@ -68,26 +68,28 @@ class InsightGenerator:
             data_summary = data[:5] if len(data) > 5 else data
             
             chart_prompt = f"""
-You are a data visualization expert. Create Chart.js chart configurations to visualize this data.
+You are a data visualization expert. Create Chart.js chart configurations using the ACTUAL DATA provided.
 
 Question: {original_question}
 SQL Query: {sql_query}
-Data Sample: {json.dumps(data_summary, indent=2)}
+Complete Data: {json.dumps(data_summary, indent=2)}
+Data Columns: {list(data_summary[0].keys()) if data_summary else []}
 
-**Task**: Create 2-4 different chart configurations that effectively visualize this data:
-- 1-2 main charts (relevancy: "main") for primary insights  
-- 1-2 secondary charts (relevancy: "secondary") for additional perspectives
+**CRITICAL**: Use the ACTUAL values from the data above. Extract real labels and values from the Complete Data.
 
-**Requirements**:
-- Use proper Chart.js format
-- Include relevancy field ("main" or "secondary")
-- For secondary charts, add user_input field with a follow-up question
-- Use appropriate chart types (bar, line, pie, doughnut, etc.)
-- Include proper titles and labels
 
-**Output Format**: Return only JSON chart configurations in ```json``` blocks.
+{create_chart_configuration_prompt()}
 
-Do NOT include any descriptive text - only return the chart configurations.
+**Chart Creation Instructions**:
+1. Look at the data columns and values
+2. Choose appropriate columns for labels (usually first column or names)
+3. Choose appropriate columns for data values (usually numeric columns)
+4. Use REAL data values, not placeholders
+5. Create meaningful chart titles based on the actual data
+
+**Output Format**: Return ONLY a JSON array in ```json``` blocks.
+
+CRITICAL: Use ACTUAL data values, not placeholders. Extract real labels and numbers from the Complete Data above.
 """
             
             response = llm.invoke(chart_prompt)
@@ -142,37 +144,80 @@ Do NOT include any descriptive text - only return the chart configurations.
             
             context_string = "\n".join(context_parts)
             
-            # Create focused prompt for comprehensive business insights
+            # STEP 1: Generate detailed insights with inferences (separate LLM call)
             insight_prompt = f"""
-You are a senior business data analyst. Your task is to provide a comprehensive business analysis of this data.
+You are a senior data analyst providing comprehensive insights. Your task is to analyze the data and provide valuable business context, inferences, and actionable insights.
 
-Context:
+**Your Analysis Should Include:**
+
+1. **Data Context & Background**: What this data represents and why it matters
+2. **Key Insights**: What the data reveals about patterns, trends, or performance
+3. **Industry Context**: Relevant industry knowledge or benchmarks
+4. **Inferences**: What can be inferred from the results using common knowledge
+5. **Business Implications**: What this means for decision-making
+
+**Guidelines:**
+- Provide 2-4 concise paragraphs of analysis
+- Use specific data points to support your insights
+- Include relevant industry context or common knowledge
+- Make meaningful inferences beyond just stating the numbers
+- Focus on actionable insights and business value
+- You can reference general industry knowledge or trends
+- Avoid repetitive data listing - synthesize and interpret instead
+
+**Context and Data:**
 {context_string}
 
-**Instructions:**
-1. Provide detailed business insights and analysis
-2. Include specific numbers and percentages from the data
-3. Identify trends, patterns, and business implications
-4. Offer actionable recommendations
-5. Then create relevant chart configurations using Chart.js format
-6. Make charts with proper relevancy markers (main/secondary)
-
-Focus on creating a thorough, professional analysis that a business stakeholder would find valuable.
+Provide a comprehensive analysis that goes beyond the raw data to deliver valuable business insights and context.
 """
             
-            # Use the LLM directly for better control
-            response = llm.invoke(insight_prompt)
+            # Use the LLM for detailed insights
+            insight_response = llm.invoke(insight_prompt)
             
-            if hasattr(response, 'content'):
-                full_response = response.content.strip()
+            if hasattr(insight_response, 'content'):
+                business_insights = insight_response.content.strip()
             else:
-                full_response = str(response).strip()
+                business_insights = str(insight_response).strip()
             
-            # Extract business insights (text before charts)
-            business_insights = self._extract_business_insights(full_response)
+            print(f"DEBUG: Generated detailed insights with {len(business_insights)} characters")
             
-            # Extract charts from the full response
-            charts = self.chart_processor.extract_charts_from_response(full_response)
+            # STEP 2: Generate ONLY charts (separate LLM call)
+            # Use complete data for charts, not just sample
+            complete_data = data if len(data) <= 20 else data[:20]  # Use more data for charts
+            
+            chart_prompt = f"""
+You are a data visualization expert. Create Chart.js chart configurations using the ACTUAL DATA provided.
+
+Question: {original_question}
+SQL Query: {sql_query}
+Complete Data: {json.dumps(complete_data, indent=2)}
+Data Columns: {list(complete_data[0].keys()) if complete_data else []}
+
+**CRITICAL**: Use the ACTUAL values from the data above. Extract real labels and values from the Complete Data.
+
+{create_chart_configuration_prompt()}
+
+**Chart Creation Instructions**:
+1. Look at the data columns and values
+2. Choose appropriate columns for labels (usually first column or names)
+3. Choose appropriate columns for data values (usually numeric columns)
+4. Use REAL data values, not placeholders
+5. Create meaningful chart titles based on the actual data
+
+
+CRITICAL: Use ACTUAL data values, not placeholders. Extract real labels and numbers from the Complete Data above.
+"""
+            
+            # Use the LLM for charts only
+            chart_response = llm.invoke(chart_prompt)
+            
+            if hasattr(chart_response, 'content'):
+                chart_content = chart_response.content.strip()
+            else:
+                chart_content = str(chart_response).strip()
+            
+            # Extract charts from the chart response
+            charts = self.chart_processor.extract_charts_from_response(chart_content)
             
             return {
                 "description": business_insights,
@@ -275,23 +320,31 @@ Focus on creating a thorough, professional analysis that a business stakeholder 
             
             context_string = "\n".join(context_parts)
             
-            # Create summary prompt
+            # NUCLEAR BRIEF SUMMARY TOO!
             summary_prompt = f"""
-You are a business data analyst creating a comprehensive summary. 
+You are a senior data analyst providing comprehensive insights. Your task is to analyze the data and provide valuable business context, inferences, and actionable insights.
 
-Your task is to analyze all the provided information and create a cohesive, insightful summary that:
-- Starts by explaining what the analysis reveals
-- Focuses on business value and actionable insights
-- Highlights key findings with specific data points and numbers
-- Identifies patterns, trends, or notable observations
-- Provides clear business recommendations where appropriate
-- Keep the summary comprehensive but concise (2-4 paragraphs)
-- Write in clear, professional language suitable for business stakeholders
+**Your Analysis Should Include:**
 
-Context and Data:
+1. **Data Context & Background**: What this data represents and why it matters
+2. **Key Insights**: What the data reveals about patterns, trends, or performance
+3. **Industry Context**: Relevant industry knowledge or benchmarks
+4. **Inferences**: What can be inferred from the results using common knowledge or web search
+5. **Business Implications**: What this means for decision-making
+
+**Guidelines:**
+- Provide bullet points of insights under headers.
+- Try not to make paragraphs.
+- Use specific data points to support your insights
+- Include relevant industry context or common knowledge
+- Make meaningful inferences beyond just stating the numbers (using numbers occasionally is fina as well)
+- Focus on actionable insights and business value
+- You can reference general industry knowledge or trends
+
+**Context and Data:**
 {context_string}
 
-Generate a comprehensive business summary based on all the above information.
+Provide a comprehensive analysis that goes beyond the raw data to deliver valuable business insights and context.
 """
             
             # Use the LLM to generate the summary
