@@ -212,7 +212,7 @@ class DataAnalystAgent:
                     enhanced_description != initial_description):
                     
                     print("DEBUG: Adding enhanced description as supplement")
-                    final_description = f"{initial_description}\n\n## Additional Insights\n{enhanced_description}"
+                    final_description = f"## Additional Insights\n{enhanced_description}"
                 else:
                     print("DEBUG: Enhanced description not suitable for supplementing, keeping initial only")
                     

@@ -28,19 +28,7 @@ class InsightGenerator:
         try:
             if not data or not sql_query:
                 return {"description": "", "charts": []}
-            
-            print(f"DEBUG: Enhanced insights - Previous description length: {len(previous_description) if previous_description else 0}")
-            
-            # If we already have a substantial previous description, only generate charts
-            if previous_description and len(previous_description) > 200:
-                print("DEBUG: Substantial previous description exists, generating charts only")
-                chart_result = self._generate_charts_only(original_question, sql_query, data, previous_description)
-                # Return empty description to preserve the original
-                return {
-                    "description": "",
-                    "charts": chart_result.get("charts", [])
-                }
-            
+                        
             # If previous description is minimal, generate both insights and charts
             return self._generate_full_insights_and_charts(
                 original_question, sql_query, data, previous_description, previous_context
@@ -123,6 +111,7 @@ Do NOT include any descriptive text - only return the chart configurations.
     ) -> Dict[str, Any]:
         """Generate full business insights and charts when no substantial previous description exists."""
         try:
+            print("--------------------------------------------")
             # Create a summary of the data for context
             data_summary = []
             if len(data) <= 5:
@@ -144,20 +133,32 @@ Do NOT include any descriptive text - only return the chart configurations.
             
             # Create focused prompt for comprehensive business insights
             insight_prompt = f"""
-You are a senior business data analyst. Your task is to provide a comprehensive business analysis of this data.
+You are a data analyst providing brief contextual insights. Add value beyond what's visible in charts/tables.
 
-Context:
+SQL WORKFLOW:
+1. Look at database tables
+2. Query relevant schemas  
+3. Create correct {DIALECT} query
+4. Provide brief contextual insights
+
+BRIEF INSIGHTS FORMAT:
+
+Analysis Summary: Comprehensive analysis of the query results without going into too much detail.
+
+Context: Interesting facts about the data that isn't obvious from numbers (background info, industry context, real-world meaning) (also listed in bullet points)
+Additional Info: Insight from other dataset dimensions OR general knowledge that adds context to these results (also listed in bullet points)
+
+RULES:
+- 1-2 sentences per bullet point max
+- NO repetition of numbers visible in charts/tables
+- Focus on WHY, background context, or connections to other data
+- Add value through context, not data repetition
+- You can use bullet points and headers to make it more readable
+
+Context and Data:
 {context_string}
 
-**Instructions:**
-1. Provide detailed business insights and analysis
-2. Include specific numbers and percentages from the data
-3. Identify trends, patterns, and business implications
-4. Offer actionable recommendations
-5. Then create relevant chart configurations using Chart.js format
-6. Make charts with proper relevancy markers (main/secondary)
-
-Focus on creating a thorough, professional analysis that a business stakeholder would find valuable.
+Generate a comprehensive summary based on all the above information. Don't talk about graphs or charts. You can use common knowledge or web search to even include links (if relevant).
 """
             
             # Use the LLM directly for better control

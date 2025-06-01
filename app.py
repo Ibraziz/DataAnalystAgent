@@ -73,7 +73,7 @@ def execute_query():
         database = data.get('database', 'northwind')
         recursion_limit = data.get('recursion_limit', RECURSION_LIMIT)
         previous_context = data.get('previous_context', None)
-        generate_summary = True
+        generate_summary = False
         
         if not question:
             return jsonify({'error': 'Question is required'}), 400
@@ -506,7 +506,7 @@ def get_dataset_overview():
         # Generate overview using a predefined question
         results = agent.execute_with_results(
             question="Give me a comprehensive overview of this database. Include information about the tables, their relationships, and some key statistics. Make it informative for a business user.",
-            generate_summary=True
+            generate_summary=False
         )
         
         # Process charts to separate main and secondary relevancy

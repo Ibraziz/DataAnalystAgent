@@ -1325,7 +1325,7 @@
 
             const analysisDiv = document.getElementById('analysis-description');
             if (results.description) {
-                analysisDiv.innerHTML = formatAnalysisDescription(results.description);
+                analysisDiv.innerHTML = results.description;
             } else {
                 analysisDiv.innerHTML = '<p>No analysis available</p>';
             }
@@ -1875,10 +1875,6 @@
             
             return `
                 <div class="analysis-description">
-                    <h3>
-                        <span style="margin-right: 8px;">📝</span>
-                        Analysis Summary
-                    </h3>
                     <div class="markdown-content">${renderedHtml}</div>
                 </div>
             `;
