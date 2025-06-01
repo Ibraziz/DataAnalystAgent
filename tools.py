@@ -11,53 +11,6 @@ def query_as_list(db, query):
     res = [re.sub(r"\b\d+\b", "", string).strip() for string in res]
     return list(set(res))
 
-class VisualizationQuerySQLTool(QuerySQLDataBaseTool):
-    """Enhanced SQL query tool that includes visualization instructions."""
-    
-    name: str = "sql_db_query_with_viz"
-    description: str = """
-    Execute a SQL query against the database and provide visualization suggestions.
-    
-    After executing your query, also provide Chart.js configuration objects for visualizing the results.
-    
-    Input should be a valid SQL query string.
-    
-    **IMPORTANT**: Along with your SQL results analysis, include complete Chart.js configuration objects in JSON format within ```json code blocks.
-    
-    Example visualization format:
-    ```json
-    {
-        "type": "bar",
-        "data": {
-            "labels": ["Category A", "Category B", "Category C"],
-            "datasets": [{
-                "label": "Revenue",
-                "data": [1000, 2000, 1500],
-                "backgroundColor": ["#3498db", "#e74c3c", "#2ecc71"]
-            }]
-        },
-        "options": {
-            "responsive": true,
-            "maintainAspectRatio": false,
-            "plugins": {
-                "title": {
-                    "display": true,
-                    "text": "Your Chart Title"
-                }
-            }
-        }
-    }
-    ```
-    
-    Choose appropriate chart types based on the data:
-    - Bar charts for categorical comparisons
-    - Line charts for trends over time
-    - Pie charts for proportional data (when categories < 8)
-    - Scatter plots for correlation analysis
-    - Doughnut charts for part-to-whole relationships
-    
-    Always provide at least one chart configuration that best represents the query results.
-    """
 
 def get_sql_tools(database_connection=None):
     """Get SQL database tools with visualization capabilities for the specified database connection."""
@@ -70,12 +23,8 @@ def get_sql_tools(database_connection=None):
     # Replace the standard SQL query tool with our enhanced visualization tool
     enhanced_tools = []
     for tool in tools:
-        if isinstance(tool, QuerySQLDataBaseTool):
-            # Replace with our enhanced tool
-            viz_tool = VisualizationQuerySQLTool(db=target_db)
-            enhanced_tools.append(viz_tool)
-        else:
-            enhanced_tools.append(tool)
+        
+        enhanced_tools.append(tool)
     
     return enhanced_tools
 
@@ -135,8 +84,15 @@ Follow these guidelines:
 6. Provide at least one chart per analysis when data is suitable for visualization
 7. You are allowed to have complex charts for complex queries. Keep it simple for simple queries.
 8. If no graph suitable for the data, just say "No graph suitable for the data"
+9. Return format should be a list of dictionaries with the following keys:
+    - relevancy: either main or secondary
+    - user_input: if it's main relevancy, it should be exactly what the user wants to see with as their input result. Do not try to infer or add anything to do user input. If it's secondary relevancy, it should be the verbal query that yields the secondary chart when translated to SQL.
+    - chart_config: the Chart.js configuration object
+The main relevancy should be the chart of the main query. The secondary relevencies are the charts of other queries that the user might find interesting and related to what the user asked.
+You should have maximum 2 main and at least 5 secondary relevancy charts.
+Pie charts and polar area charts are encouraged for secondary relevancy charts (if applicable).
 
-Example format for simple chart:
+Example format for simple Chart.js configuration object:
 ```json
 {
     "type": "bar",

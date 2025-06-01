@@ -14,16 +14,66 @@ def index():
     """Serve the main web interface."""
     return render_template('index.html')
 
+# Fixed app.py chart processing section
+
+# Add this helper function at the top of app.py, outside any route
+
+def is_valid_chart_config(chart_config):
+    """Validate that a chart config has the required structure."""
+    if not isinstance(chart_config, dict):
+        return False
+    
+    # Must have type and data
+    if 'type' not in chart_config or 'data' not in chart_config:
+        return False
+    
+    # Data must be a dict
+    if not isinstance(chart_config['data'], dict):
+        return False
+    
+    # Data should have datasets (for most chart types)
+    data = chart_config['data']
+    if 'datasets' not in data:
+        return False
+    
+    # Datasets should be a list
+    if not isinstance(data['datasets'], list) or len(data['datasets']) == 0:
+        return False
+    
+    return True
+
+def get_chart_fingerprint(chart_config):
+    """Create a unique fingerprint for a chart to detect duplicates."""
+    try:
+        chart_type = chart_config.get('type', '')
+        data = chart_config.get('data', {})
+        labels = str(sorted(data.get('labels', [])))
+        
+        # Create fingerprint from datasets
+        datasets_fingerprint = []
+        for dataset in data.get('datasets', []):
+            dataset_data = str(sorted(dataset.get('data', [])))
+            dataset_label = dataset.get('label', '')
+            datasets_fingerprint.append(f"{dataset_label}:{dataset_data}")
+        
+        fingerprint = f"{chart_type}:{labels}:{':'.join(sorted(datasets_fingerprint))}"
+        return fingerprint
+    except Exception as e:
+        print(f"DEBUG: Error creating fingerprint: {e}")
+        return str(chart_config)  # Fallback to string representation
+
+# Then in your execute_query route, replace the chart processing section:
+
 @app.route('/api/query', methods=['POST'])
 def execute_query():
     """Execute a query using the SQL agent."""
     try:
         data = request.json
         question = data.get('question', '').strip()
-        database = data.get('database', 'northwind')  # Default to northwind
-        recursion_limit = data.get('recursion_limit', RECURSION_LIMIT)  # Allow override via API
-        previous_context = data.get('previous_context', None)  # Allow passing previous context
-        generate_summary = data.get('generate_summary', False)  # Allow requesting summary generation
+        database = data.get('database', 'northwind')
+        recursion_limit = data.get('recursion_limit', RECURSION_LIMIT)
+        previous_context = data.get('previous_context', None)
+        generate_summary = True
         
         if not question:
             return jsonify({'error': 'Question is required'}), 400
@@ -37,9 +87,7 @@ def execute_query():
         print(f"{'='*60}")
         
         # Create agent with the selected database
-        agent = DataAnalystAgent(
-            database_name=database
-        )
+        agent = DataAnalystAgent(database_name=database)
         
         # Execute agent and get structured results with optional summary
         results = agent.execute_with_results(
@@ -53,17 +101,101 @@ def execute_query():
         print(f"  - SQL found: {bool(results.get('sql'))}")
         print(f"  - Data rows: {len(results.get('data', []))}")
         print(f"  - Has description: {bool(results.get('description'))}")
-        print(f"  - Has chart properties: {bool(results.get('chart_properties'))}")
+        print(f"  - Total charts: {len(results.get('charts', []))}")
         
-        if results.get('chart_properties'):
-            print(f"  - Chart properties: {results.get('chart_properties')}")
+        # Process charts to separate main and secondary relevancy
+        charts = results.get('charts', [])
+        main_charts = []
+        secondary_charts = []
         
-        # Validate the results
-        if not results.get('sql'):
-            print("WARNING: No SQL query was generated")
+        print(f"DEBUG: Processing {len(charts)} total charts")
         
-        if not results.get('data'):
-            print("WARNING: No data was returned from the query")
+        # Use a set to track chart fingerprints and avoid duplicates
+        seen_chart_fingerprints = set()
+        
+        for i, chart in enumerate(charts):
+            print(f"DEBUG: Processing chart {i}")
+            
+            if not isinstance(chart, dict):
+                print(f"DEBUG: Chart {i} is not a dict, skipping")
+                continue
+            
+            # Extract chart config and metadata
+            chart_config = None
+            relevancy = None
+            user_input = None
+            
+            if 'relevancy' in chart and 'chart_config' in chart:
+                # New structure with separate config
+                relevancy = chart['relevancy']
+                chart_config = chart['chart_config']
+                user_input = chart.get('user_input')
+                print(f"DEBUG: Chart {i} has relevancy structure: {relevancy}")
+            elif 'relevancy' in chart and 'type' in chart and 'data' in chart:
+                # Direct chart config with relevancy field
+                relevancy = chart['relevancy']
+                user_input = chart.get('user_input')
+                # Create clean chart config without relevancy field
+                chart_config = {k: v for k, v in chart.items() 
+                              if k not in ['relevancy', 'user_input']}
+                print(f"DEBUG: Chart {i} has direct relevancy structure: {relevancy}")
+            elif 'type' in chart and 'data' in chart:
+                # Standard chart config without relevancy
+                chart_config = chart
+                relevancy = 'main'  # Default to main if no relevancy specified
+                print(f"DEBUG: Chart {i} is standard config, defaulting to main")
+            else:
+                print(f"DEBUG: Chart {i} doesn't match expected structure, skipping")
+                continue
+            
+            # Validate chart config
+            if not is_valid_chart_config(chart_config):
+                print(f"DEBUG: Chart {i} has invalid config, skipping")
+                continue
+            
+            # Check for duplicates
+            fingerprint = get_chart_fingerprint(chart_config)
+            if fingerprint in seen_chart_fingerprints:
+                print(f"DEBUG: Chart {i} is a duplicate, skipping")
+                continue
+            
+            seen_chart_fingerprints.add(fingerprint)
+            
+            # Assign to appropriate category
+            if relevancy == 'secondary':
+                # For secondary charts, preserve the full structure with metadata
+                secondary_chart = {
+                    'relevancy': 'secondary',
+                    'chart_config': chart_config
+                }
+                if user_input:
+                    secondary_chart['user_input'] = user_input
+                
+                secondary_charts.append(secondary_chart)
+                print(f"DEBUG: Added chart {i} to secondary_charts")
+            else:
+                # For main charts, just use the clean chart config
+                main_charts.append(chart_config)
+                print(f"DEBUG: Added chart {i} to main_charts")
+        
+        print(f"DEBUG: Final separation - Main: {len(main_charts)}, Secondary: {len(secondary_charts)}")
+        
+        # Log chart details for debugging
+        for i, chart in enumerate(main_charts):
+            chart_type = chart.get('type', 'unknown')
+            title = ""
+            if 'options' in chart and 'plugins' in chart['options'] and 'title' in chart['options']['plugins']:
+                title = chart['options']['plugins']['title'].get('text', '')
+            print(f"DEBUG: Main chart {i}: type={chart_type}, title='{title}'")
+        
+        for i, chart in enumerate(secondary_charts):
+            chart_config = chart.get('chart_config', {})
+            chart_type = chart_config.get('type', 'unknown')
+            title = ""
+            if 'options' in chart_config and 'plugins' in chart_config['options'] and 'title' in chart_config['options']['plugins']:
+                title = chart_config['options']['plugins']['title'].get('text', '')
+            user_input = chart.get('user_input', '')
+            print(f"DEBUG: Secondary chart {i}: type={chart_type}, title='{title}', user_input='{user_input[:50]}...'")
         
         # Return structured response
         result = {
@@ -73,14 +205,18 @@ def execute_query():
             'sql': results.get('sql', ''),
             'data': results.get('data', []),
             'description': results.get('description', ''),
-            'charts': results.get('charts', []),  # Charts from the agent
+            'main_charts': main_charts,
+            'secondary_charts': secondary_charts,
             'debug_info': {
                 'sql_found': bool(results.get('sql')),
                 'data_rows': len(results.get('data', [])),
                 'has_description': bool(results.get('description')),
                 'has_summary': bool(results.get('summary')),
                 'previous_context_provided': bool(previous_context),
-                'charts_count': len(results.get('charts', []))
+                'main_charts_count': len(main_charts),
+                'secondary_charts_count': len(secondary_charts),
+                'total_charts_processed': len(charts),
+                'duplicates_removed': len(charts) - len(main_charts) - len(secondary_charts)
             }
         }
         
@@ -88,14 +224,13 @@ def execute_query():
         if results.get('summary'):
             result['summary'] = results['summary']
         
-        print(f"DEBUG: Returning result with {len(results.get('data', []))} rows and {len(results.get('charts', []))} charts")
+        print(f"DEBUG: Returning result with {len(results.get('data', []))} rows, {len(main_charts)} main charts, and {len(secondary_charts)} secondary charts")
         return jsonify(result)
         
     except Exception as e:
         error_details = traceback.format_exc()
         print(f"ERROR in execute_query: {error_details}")
         
-        # Return detailed error information for debugging
         return jsonify({
             'success': False,
             'error': f'An error occurred: {str(e)}',
@@ -104,9 +239,33 @@ def execute_query():
             'debug_info': {
                 'question': data.get('question', '') if 'data' in locals() else '',
                 'database': data.get('database', '') if 'data' in locals() else '',
-                'stage': 'unknown'
+                'stage': 'chart_processing'
             }
         }), 500
+
+def _is_valid_chart_config(chart_config):
+    """Validate that a chart config has the required structure."""
+    if not isinstance(chart_config, dict):
+        return False
+    
+    # Must have type and data
+    if 'type' not in chart_config or 'data' not in chart_config:
+        return False
+    
+    # Data must be a dict
+    if not isinstance(chart_config['data'], dict):
+        return False
+    
+    # Data should have datasets (for most chart types)
+    data = chart_config['data']
+    if 'datasets' not in data:
+        return False
+    
+    # Datasets should be a list
+    if not isinstance(data['datasets'], list) or len(data['datasets']) == 0:
+        return False
+    
+    return True
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -237,6 +396,20 @@ def execute_query_with_context():
             generate_summary=True  # Always generate summary for this endpoint
         )
         
+        # Process charts to separate main and secondary relevancy
+        charts = results.get('charts', [])
+        main_charts = []
+        secondary_charts = []
+        
+        for chart in charts:
+            if isinstance(chart, dict) and 'relevancy' in chart:
+                if chart['relevancy'] == 'main':
+                    main_charts.append(chart.get('chart_config', chart))
+                elif chart['relevancy'] == 'secondary':
+                    secondary_charts.append(chart)
+            else:
+                main_charts.append(chart)
+        
         # Return structured response with summary
         result = {
             'success': True,
@@ -246,14 +419,16 @@ def execute_query_with_context():
             'data': results.get('data', []),
             'description': results.get('description', ''),
             'summary': results.get('summary', ''),
-            'charts': results.get('charts', []),  # Charts from the agent
+            'main_charts': main_charts,
+            'secondary_charts': secondary_charts,
             'debug_info': {
                 'sql_found': bool(results.get('sql')),
                 'data_rows': len(results.get('data', [])),
                 'has_description': bool(results.get('description')),
                 'has_summary': bool(results.get('summary')),
                 'context_items_processed': len(previous_context) if isinstance(previous_context, list) else 0,
-                'charts_count': len(results.get('charts', []))
+                'main_charts_count': len(main_charts),
+                'secondary_charts_count': len(secondary_charts)
             }
         }
         
@@ -334,15 +509,31 @@ def get_dataset_overview():
             generate_summary=True
         )
         
+        # Process charts to separate main and secondary relevancy
+        charts = results.get('charts', [])
+        main_charts = []
+        secondary_charts = []
+        
+        for chart in charts:
+            if isinstance(chart, dict) and 'relevancy' in chart:
+                if chart['relevancy'] == 'main':
+                    main_charts.append(chart.get('chart_config', chart))
+                elif chart['relevancy'] == 'secondary':
+                    secondary_charts.append(chart)
+            else:
+                main_charts.append(chart)
+        
         # Return structured response
         result = {
             'success': True,
             'database': database,
             'overview': results.get('description', ''),
-            'charts': results.get('charts', []),
+            'main_charts': main_charts,
+            'secondary_charts': secondary_charts,
             'debug_info': {
                 'has_description': bool(results.get('description')),
-                'charts_count': len(results.get('charts', []))
+                'main_charts_count': len(main_charts),
+                'secondary_charts_count': len(secondary_charts)
             }
         }
         

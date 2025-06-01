@@ -223,10 +223,45 @@
             color: #2c3e50;
             display: flex;
             align-items: center;
-        }        .analysis-description div {
+        }
+
+        .analysis-description div {
             color: #34495e;
             line-height: 1.6;
             white-space: pre-wrap;
+        }
+
+        /* Add this CSS to your index.html <style> section */
+
+        #analysis-description h4 {
+            color: #2c3e50;
+            margin: 20px 0 10px 0;
+            font-size: 16px;
+            font-weight: bold;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+
+        #analysis-description ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        #analysis-description li {
+            margin: 8px 0;
+            line-height: 1.5;
+            color: #444;
+        }
+
+        #analysis-description p {
+            margin: 10px 0;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        #analysis-description strong {
+            color: #2c3e50;
+            font-weight: 600;
         }
 
         /* Markdown rendering styles */
@@ -665,6 +700,160 @@
             background: rgba(52, 152, 219, 0.2);
             transform: translateX(5px);
         }
+
+        /* Secondary Charts Sliding Window Styles */
+        .secondary-charts-container {
+            position: relative;
+            height: 500px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 0;
+            overflow: hidden;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .secondary-charts-container:hover {
+            border-color: #3498db;
+            box-shadow: 0 10px 25px rgba(52, 152, 219, 0.1);
+        }
+
+        .secondary-chart-slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.5s ease-in-out;
+            padding: 25px;
+            background: white;
+            border-radius: 15px;
+        }
+
+        .secondary-chart-slide.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .secondary-chart-slide.prev {
+            transform: translateX(-100%);
+        }
+
+        .secondary-chart-slide.next {
+            transform: translateX(100%);
+        }
+
+        .secondary-chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .secondary-chart-title {
+            color: #2c3e50;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .secondary-chart-indicator {
+            background: rgba(52, 152, 219, 0.1);
+            color: #3498db;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .secondary-chart-canvas-container {
+            position: relative;
+            height: 380px;
+            width: 100%;
+        }
+
+        .secondary-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: #3498db;
+            transition: width 0.1s linear;
+            border-radius: 0 0 15px 15px;
+        }
+
+        .secondary-chart-count {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(52, 152, 219, 0.1);
+            color: #3498db;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            z-index: 10;
+        }
+
+        .secondary-dots-container {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .secondary-chart-slide[data-user-input] {
+            cursor: pointer;
+        }
+
+        .secondary-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(52, 152, 219, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .secondary-dot.active {
+            background: #3498db;
+            border-color: #3498db;
+            transform: scale(1.2);
+        }
+
+        .secondary-dot:hover {
+            background: rgba(52, 152, 219, 0.7);
+            transform: scale(1.1);
+        }
+
+        /* Hidden state for hackathon stats when results are shown */
+        .hackathon-section.hidden {
+            display: none;
+        }
+
+        .secondary-charts-section {
+            display: none;
+        }
+
+        .secondary-charts-section.visible {
+            display: block;
+        }
+
+        /* Tooltip animation */
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            50% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -701,7 +890,8 @@
                 <div id="status" class="status" style="display: none;"></div>
             </div>
 
-            <div class="query-section">
+            <!-- Hackathon Stats Section (hidden when results are shown) -->
+            <div class="query-section hackathon-section" id="hackathonSection">
                 <h2 class="section-title">
                     <span>😵‍💫</span>
                     Hackathon Survival Stats
@@ -761,16 +951,43 @@
                 </div>
             </div>
 
+            <!-- Secondary Charts Section (shown when results are displayed) -->
+            <div class="query-section secondary-charts-section" id="secondaryChartsSection">
+                <h2 class="section-title">
+                    <span>📊</span>
+                    Relevant Graphs
+                </h2>
+                
+                <div class="secondary-charts-container" id="secondaryChartsContainer">
+                    <div class="secondary-chart-count" id="secondaryChartCount">0/0</div>
+                    <div class="secondary-progress" id="secondaryProgress"></div>
+                    <div class="secondary-dots-container" id="secondaryDotsContainer">
+                        <!-- Dots will be inserted here -->
+                    </div>
+                    <!-- Secondary chart slides will be inserted here -->
+                </div>
+            </div>
+
             <div id="results" class="results-section full-width" style="display: none;">
+                
+                <h2 class="section-title">
+                    <span>🔍</span>
+                    SQL Query
+                </h2>
+                <div class="sql-display" id="sql-query-display">
+                    <!-- SQL query will be displayed here -->
+                </div>
+
                 <div class="result-card">
                     <h2 class="section-title">
                         <span>📊</span>
                         Query Results
                     </h2>
-                    <div id="sql-query" class="sql-display"></div>
-                    <div id="data-results"></div>
+                    <div id="data-table-container">
+                        <!-- Data table will be displayed here -->
+                    </div>
                 </div>
-
+                
                 <div class="result-card">
                     <h2 class="section-title">
                         <span>📝</span>
@@ -782,10 +999,10 @@
                 <div class="result-card">
                     <h2 class="section-title">
                         <span>🎨</span>
-                        Data Visualizations
+                        Main Visualizations
                     </h2>
                     <div id="charts-container">
-                        <!-- Charts will be dynamically inserted here -->
+                        <!-- Main charts will be dynamically inserted here -->
                     </div>
                 </div>
             </div>
@@ -794,6 +1011,12 @@
 
     <script>
         let charts = [];
+        let secondaryCharts = [];
+        let currentSecondaryIndex = 0;
+        let secondaryAutoplayInterval = null;
+        let secondaryProgressInterval = null;
+        let isSecondaryAutoplayActive = true;
+        const SECONDARY_SLIDE_DURATION = 3000; // 3 seconds
 
         // Animate number counting on load
         document.addEventListener('DOMContentLoaded', function() {
@@ -891,16 +1114,6 @@
             }, 2000);
         }
 
-        // Add CSS animation for tooltip
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes fadeInOut {
-                0%, 100% { opacity: 0; transform: translateX(-50%) translateY(10px); }
-                50% { opacity: 1; transform: translateX(-50%) translateY(0); }
-            }
-        `;
-        document.head.appendChild(style);
-
         function setQuestion(question) {
             document.getElementById('question').value = question;
         }
@@ -929,6 +1142,9 @@
             
             // Hide previous results
             document.getElementById('results').style.display = 'none';
+            
+            // Stop secondary chart autoplay
+            stopSecondaryAutoplay();
 
             try {
                 console.log("Sending request with:", { question, database });
@@ -953,6 +1169,9 @@
                 if (data.success) {
                     showStatus('✅ Analysis complete!', 'success');
                     displayResults(data);
+                    
+                    // Toggle section visibility
+                    toggleSections(true);
                 } else {
                     showStatus(`❌ Error: ${data.error}`, 'error');
                     console.error('API Error:', data);
@@ -976,31 +1195,261 @@
             }
         }
 
-        function displayResults(results) {
-            console.log("Displaying results:", results);
+        function toggleSections(showResults) {
+            const hackathonSection = document.getElementById('hackathonSection');
+            const secondaryChartsSection = document.getElementById('secondaryChartsSection');
             
-            // Display SQL query
-            document.getElementById('sql-query').textContent = results.sql || 'No SQL query generated';
+            if (showResults) {
+                hackathonSection.classList.add('hidden');
+                secondaryChartsSection.classList.add('visible');
+            } else {
+                hackathonSection.classList.remove('hidden');
+                secondaryChartsSection.classList.remove('visible');
+            }
+        }
+        
+        function generateDataTable(data) {
+            if (!data || data.length === 0) {
+                return '<p>No data returned from query</p>';
+            }
+            
+            // Get column headers from first row
+            const headers = Object.keys(data[0]);
+            
+            let tableHtml = '<table class="data-table">';
+            
+            // Add header row
+            tableHtml += '<thead><tr>';
+            headers.forEach(header => {
+                tableHtml += `<th>${header}</th>`;
+            });
+            tableHtml += '</tr></thead>';
+            
+            // Add data rows
+            tableHtml += '<tbody>';
+            data.forEach(row => {
+                tableHtml += '<tr>';
+                headers.forEach(header => {
+                    const value = row[header];
+                    // Format numbers nicely
+                    const displayValue = typeof value === 'number' && value % 1 !== 0 
+                        ? value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})
+                        : value?.toLocaleString() || '';
+                    tableHtml += `<td>${displayValue}</td>`;
+                });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody></table>';
+            
+            return tableHtml;
+        }
+        
+        function formatAnalysisDescription(description) {
+            if (!description) return '';
+            
+            let formatted = description;
+            
+            // Convert **bold text** to <strong>bold text</strong>
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convert lines starting with "- " to proper list items
+            // First, split into lines and process each one
+            const lines = formatted.split('\n');
+            let inList = false;
+            let result = '';
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line.startsWith('- ')) {
+                    // This is a list item
+                    if (!inList) {
+                        result += '<ul>';
+                        inList = true;
+                    }
+                    result += `<li>${line.substring(2)}</li>`;
+                } else if (line.startsWith('**') && line.endsWith(':**')) {
+                    // This is a section header
+                    if (inList) {
+                        result += '</ul>';
+                        inList = false;
+                    }
+                    result += `<h4>${line}</h4>`;
+                } else if (line.length > 0) {
+                    // Regular paragraph
+                    if (inList) {
+                        result += '</ul>';
+                        inList = false;
+                    }
+                    result += `<p>${line}</p>`;
+                } else {
+                    // Empty line
+                    if (inList) {
+                        result += '</ul>';
+                        inList = false;
+                    }
+                    result += '<br>';
+                }
+            }
+            
+            // Close any open list
+            if (inList) {
+                result += '</ul>';
+            }
+            
+            return result;
+        }
 
-            // Display data table
-            const tableHtml = generateDataTable(results.data);
-            document.getElementById('data-results').innerHTML = tableHtml;
+
+        function displayResults(results) {
+            console.log("=== DISPLAYING RESULTS ===");
+            console.log("Results structure:", Object.keys(results));
+            console.log("Raw main_charts:", results.main_charts);
+            console.log("Raw secondary_charts:", results.secondary_charts);
+            console.log("Legacy charts:", results.charts);
+            
+            const sqlDisplay = document.getElementById('sql-query-display');
+            if (results.sql) {
+                sqlDisplay.textContent = results.sql;
+            } else {
+                sqlDisplay.textContent = 'No SQL query generated';
+            }
+            
+
+            const dataTableContainer = document.getElementById('data-table-container');
+            if (results.data && results.data.length > 0) {
+                dataTableContainer.innerHTML = generateDataTable(results.data);
+            } else {
+                dataTableContainer.innerHTML = '<p>No data returned from query</p>';
+            }
+
+            const analysisDiv = document.getElementById('analysis-description');
+            if (results.description) {
+                analysisDiv.innerHTML = formatAnalysisDescription(results.description);
+            } else {
+                analysisDiv.innerHTML = '<p>No analysis available</p>';
+            }
 
             // Display description
             const descriptionHtml = generateDescriptionDisplay(results.description);
             document.getElementById('analysis-description').innerHTML = descriptionHtml;
 
-            // Display charts from the charts array
-            displayCharts(results.charts || []);
+            // Get charts and separate them intelligently
+            const allCharts = results.main_charts || [];
+            const allSecondaryCharts = results.secondary_charts || [];
+
+            console.log("All charts received:", allCharts.length);
+            console.log("Secondary charts received:", allSecondaryCharts.length);
+
+            const separatedCharts = {
+                main: allCharts,
+                secondary: allSecondaryCharts
+            };
+            
+            console.log("=== SEPARATION COMPLETE ===");
+            console.log(`Main charts: ${separatedCharts.main.length}`);
+            console.log(`Secondary charts: ${separatedCharts.secondary.length}`);
+            
+            // Display main charts
+            console.log("=== DISPLAYING MAIN CHARTS ===");
+            displayMainCharts(separatedCharts.main);
+            
+            // Display secondary charts in sliding window
+            const secondaryCharts = results.secondary_charts || separatedCharts.secondary;
+            console.log("=== DISPLAYING SECONDARY CHARTS ===");
+            console.log("Final secondary charts to display:", secondaryCharts.length);
+            displaySecondaryCharts(secondaryCharts);
 
             // Show results section
             document.getElementById('results').style.display = 'grid';
         }
 
-        function displayCharts(chartConfigs) {
-            console.log("Displaying charts:", chartConfigs);
+
+
+        function separateCharts(charts) {
+            const main = [];
+            const secondary = [];
             
-            // Destroy any existing charts
+            console.log(`Starting separation with ${charts.length} charts`);
+            
+            // Count charts that explicitly specify relevancy
+            const explicitMain = charts.filter(chart => chart.relevancy === 'main').length;
+            const explicitSecondary = charts.filter(chart => chart.relevancy === 'secondary').length;
+            
+            console.log(`Explicit relevancy: ${explicitMain} main, ${explicitSecondary} secondary`);
+            
+            charts.forEach((chart, index) => {
+                // Extract chart config and relevancy
+                let chartConfig, relevancy;
+                
+                if (chart.chart_config) {
+                    // New structure with relevancy wrapper
+                    chartConfig = chart.chart_config;
+                    relevancy = chart.relevancy;
+                    console.log(`Chart ${index}: chart_config structure, relevancy: ${relevancy}`);
+                } else if (chart.type && chart.data) {
+                    // Direct chart config
+                    chartConfig = chart;
+                    relevancy = chart.relevancy || null;
+                    console.log(`Chart ${index}: direct config structure, relevancy: ${relevancy}`);
+                } else {
+                    console.warn(`Chart ${index} has unexpected structure:`, chart);
+                    chartConfig = chart;
+                    relevancy = null;
+                }
+                
+                // Decide where to place the chart
+                if (relevancy === 'main') {
+                    main.push(chart);
+                    console.log(`Chart ${index}: Added to main (explicit relevancy)`);
+                } else if (relevancy === 'secondary') {
+                    secondary.push(chart);
+                    console.log(`Chart ${index}: Added to secondary (explicit relevancy)`);
+                } else {
+                    // No explicit relevancy - use more intelligent logic
+                    
+                    // If we have any explicit relevancy markers, be more conservative with main charts
+                    const maxMainCharts = (explicitMain > 0 || explicitSecondary > 0) ? 2 : 3;
+                    
+                    // Chart titles/types that suggest primary importance
+                    const isMainTypeChart = chartConfig && (
+                        (chartConfig.options?.plugins?.title?.text || '').toLowerCase().includes('top 10') ||
+                        (chartConfig.options?.plugins?.title?.text || '').toLowerCase().includes('products by revenue') ||
+                        index === 0 // First chart is usually main
+                    );
+                    
+                    if (main.length < maxMainCharts && (isMainTypeChart || main.length === 0)) {
+                        main.push(chart);
+                        console.log(`Chart ${index}: Added to main (intelligent placement - ${main.length}/${maxMainCharts})`);
+                    } else {
+                        secondary.push(chart);
+                        console.log(`Chart ${index}: Added to secondary (intelligent placement)`);
+                    }
+                }
+            });
+            
+            console.log(`Final separation: ${main.length} main charts and ${secondary.length} secondary charts`);
+            
+            // Log chart titles for debugging
+            main.forEach((chart, i) => {
+                const config = chart.chart_config || chart;
+                const title = config.options?.plugins?.title?.text || `Chart ${i + 1}`;
+                console.log(`Main chart ${i}: ${title} (${config.type})`);
+            });
+            
+            secondary.forEach((chart, i) => {
+                const config = chart.chart_config || chart;
+                const title = config.options?.plugins?.title?.text || `Chart ${i + 1}`;
+                console.log(`Secondary chart ${i}: ${title} (${config.type})`);
+            });
+            
+            return { main, secondary };
+        }
+
+        function displayMainCharts(chartConfigs) {
+            console.log("Displaying main charts:", chartConfigs);
+            
+            // Destroy any existing main charts
             charts.forEach(chart => {
                 if (chart && typeof chart.destroy === 'function') {
                     chart.destroy();
@@ -1008,12 +1457,12 @@
             });
             charts = [];
             
-            // Get or create container for charts
+            // Get or create container for main charts
             const chartsContainer = document.getElementById('charts-container');
             
             // Handle case where no charts are provided
             if (!chartConfigs || chartConfigs.length === 0) {
-                chartsContainer.innerHTML = '<div class="no-charts-message">📊 No visualizations available for this data.</div>';
+                chartsContainer.innerHTML = '<div class="no-charts-message">📊 No main visualizations available for this data.</div>';
                 return;
             }
             
@@ -1022,9 +1471,26 @@
             const chartsGrid = chartsContainer.querySelector('.charts-grid');
             
             // Create each chart
-            chartConfigs.forEach((chartConfig, index) => {
+            chartConfigs.forEach((chartData, index) => {
                 try {
-                    console.log(`Creating chart ${index}:`, chartConfig);
+                    console.log(`Creating main chart ${index}:`, chartData);
+                    
+                    // Extract chart config - handle both structures
+                    let chartConfig;
+                    if (chartData.chart_config) {
+                        // New structure with relevancy wrapper
+                        chartConfig = chartData.chart_config;
+                        console.log(`Chart ${index} using chart_config structure`);
+                    } else if (chartData.type && chartData.data) {
+                        // Direct chart config
+                        chartConfig = chartData;
+                        console.log(`Chart ${index} using direct config structure`);
+                    } else {
+                        console.warn(`Main chart ${index} has unexpected structure:`, chartData);
+                        chartConfig = chartData; // Fallback
+                    }
+                    
+                    console.log(`Chart config for main chart ${index}:`, chartConfig);
                     
                     // Create wrapper for this chart
                     const wrapper = document.createElement('div');
@@ -1039,10 +1505,16 @@
                         const title = document.createElement('h3');
                         title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartConfig.title}`;
                         wrapper.appendChild(title);
+                    } else {
+                        // Fallback title
+                        const title = document.createElement('h3');
+                        title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>Chart ${index + 1}`;
+                        wrapper.appendChild(title);
                     }
-                      // Add canvas for chart
+                      
+                    // Add canvas for chart
                     const canvas = document.createElement('canvas');
-                    canvas.id = `chart-${index}`;
+                    canvas.id = `main-chart-${index}`;
                     const canvasContainer = document.createElement('div');
                     canvasContainer.className = 'chart-container';
                     canvasContainer.appendChild(canvas);
@@ -1064,9 +1536,9 @@
                     const chart = new Chart(ctx, chartConfig);
                     charts.push(chart);
                     
-                    console.log(`Successfully created chart ${index}`);
+                    console.log(`Successfully created main chart ${index} of type ${chartConfig.type}`);
                 } catch (error) {
-                    console.error(`Error creating chart ${index}:`, error);
+                    console.error(`Error creating main chart ${index}:`, error);
                     console.error("Chart config that failed:", chartConfig);
                     
                     // Create error message in place of failed chart
@@ -1075,14 +1547,272 @@
                     errorDiv.innerHTML = `
                         <div style="padding: 20px; text-align: center; color: #e74c3c; background: #fdf2f2; border-radius: 8px; border: 1px solid #f5c6cb;">
                             <h4>Chart Error</h4>
-                            <p>Failed to render chart ${index + 1}</p>
+                            <p>Failed to render main chart ${index + 1}</p>
+                            <small>Check console for details</small>
                         </div>
                     `;
                     chartsGrid.appendChild(errorDiv);
                 }
             });
             
-            console.log(`Created ${charts.length} charts successfully out of ${chartConfigs.length} provided`);
+            console.log(`Created ${charts.length} main charts successfully out of ${chartConfigs.length} provided`);
+        }
+
+        function displaySecondaryCharts(chartConfigs) {
+            console.log("Displaying secondary charts:", chartConfigs);
+            
+            // Destroy any existing secondary charts
+            secondaryCharts.forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            secondaryCharts = [];
+            currentSecondaryIndex = 0;
+            
+            const container = document.getElementById('secondaryChartsContainer');
+            const countDisplay = document.getElementById('secondaryChartCount');
+            const dotsContainer = document.getElementById('secondaryDotsContainer');
+            
+            // Clear existing slides and dots
+            const existingSlides = container.querySelectorAll('.secondary-chart-slide');
+            existingSlides.forEach(slide => slide.remove());
+            dotsContainer.innerHTML = '';
+            
+            // Handle case where no secondary charts are provided
+            if (!chartConfigs || chartConfigs.length === 0) {
+                countDisplay.textContent = '0/0';
+                const noChartsSlide = document.createElement('div');
+                noChartsSlide.className = 'secondary-chart-slide active';
+                noChartsSlide.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; color: #666; font-style: italic;">
+                        <div>
+                            <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
+                            <div>No relevant graphs available</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(noChartsSlide);
+                return;
+            }
+            
+            // Update count display
+            countDisplay.textContent = `1/${chartConfigs.length}`;
+            
+            // Create dots for navigation
+            chartConfigs.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.className = `secondary-dot ${index === 0 ? 'active' : ''}`;
+                dot.addEventListener('click', () => goToSecondaryChart(index));
+                dotsContainer.appendChild(dot);
+            });
+            
+            // Create slides for each secondary chart
+            chartConfigs.forEach((chartData, index) => {
+                console.log(`Processing secondary chart ${index}:`, chartData);
+                
+                const slide = document.createElement('div');
+                slide.className = `secondary-chart-slide ${index === 0 ? 'active' : ''}`;
+                
+                // Extract chart config - handle both structures
+                let chartConfig;
+                if (chartData.chart_config) {
+                    // New structure with relevancy wrapper
+                    chartConfig = chartData.chart_config;
+                } else if (chartData.type && chartData.data) {
+                    // Direct chart config
+                    chartConfig = chartData;
+                } else {
+                    console.warn(`Secondary chart ${index} has unexpected structure:`, chartData);
+                    chartConfig = chartData; // Fallback
+                }
+                
+                console.log(`Chart config for secondary chart ${index}:`, chartConfig);
+                
+                // Create slide content
+                const header = document.createElement('div');
+                header.className = 'secondary-chart-header';
+                
+                const title = document.createElement('div');
+                title.className = 'secondary-chart-title';
+                
+                // Get title from chart config
+                let chartTitle = `Secondary Insight ${index + 1}`;
+                if (chartConfig.options && chartConfig.options.plugins && chartConfig.options.plugins.title && chartConfig.options.plugins.title.text) {
+                    chartTitle = chartConfig.options.plugins.title.text;
+                } else if (chartConfig.title) {
+                    chartTitle = chartConfig.title;
+                }
+                
+                title.innerHTML = `<span>${getChartEmoji(chartConfig.type)}</span>${chartTitle}`;
+                
+                const indicator = document.createElement('div');
+                indicator.className = 'secondary-chart-indicator';
+                
+                header.appendChild(title);
+                header.appendChild(indicator);
+                slide.appendChild(header);
+                
+                // Create canvas container
+                const canvasContainer = document.createElement('div');
+                canvasContainer.className = 'secondary-chart-canvas-container';
+                
+                const canvas = document.createElement('canvas');
+                canvas.id = `secondary-chart-${index}`;
+                canvasContainer.appendChild(canvas);
+                slide.appendChild(canvasContainer);
+
+                container.appendChild(slide);
+
+                try {
+                    if (
+                        chartData &&
+                        typeof chartData === 'object' &&
+                        chartData.relevancy === 'secondary' &&
+                        typeof chartData.user_input === 'string'
+                    ) {
+                        slide.setAttribute('data-user-input', chartData.user_input);
+                        slide.classList.add('clickable-secondary-chart');
+
+                        slide.addEventListener('click', (e) => {
+                            e.stopPropagation(); // Prevent click propagation
+                            const userInput = slide.getAttribute('data-user-input');
+                            if (userInput) {
+                                setQuestion(userInput);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn(`Secondary chart ${index} missing user_input or relevancy`, e);
+                }
+                
+                // Create Chart.js chart
+                try {
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Ensure responsive options are set
+                    if (!chartConfig.options) {
+                        chartConfig.options = {};
+                    }
+                    chartConfig.options.responsive = true;
+                    chartConfig.options.maintainAspectRatio = false;
+                    
+                    const chart = new Chart(ctx, chartConfig);
+                    secondaryCharts.push(chart);
+                    
+                    console.log(`Successfully created secondary chart ${index}`);
+                } catch (error) {
+                    console.error(`Error creating secondary chart ${index}:`, error);
+                    console.error("Chart config that failed:", chartConfig);
+                    canvasContainer.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #e74c3c; text-align: center;">
+                            <div>
+                                <h4>Chart Error</h4>
+                                <p>Failed to render chart ${index + 1}</p>
+                                <small>Check console for details</small>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            // Start autoplay if there are multiple charts
+            if (chartConfigs.length > 1) {
+                startSecondaryAutoplay();
+            }
+            
+            console.log(`Created ${secondaryCharts.length} secondary charts successfully out of ${chartConfigs.length} provided`);
+        }
+
+        function goToSecondaryChart(index) {
+            const slides = document.querySelectorAll('.secondary-chart-slide');
+            const dots = document.querySelectorAll('.secondary-dot');
+            
+            if (index === currentSecondaryIndex || index >= slides.length) return;
+            
+            // Update current slide
+            slides[currentSecondaryIndex].classList.remove('active');
+            dots[currentSecondaryIndex].classList.remove('active');
+            
+            // Determine animation direction
+            if (index > currentSecondaryIndex) {
+                slides[currentSecondaryIndex].classList.add('prev');
+            } else {
+                slides[currentSecondaryIndex].classList.add('next');
+            }
+            
+            // Update to new slide
+            currentSecondaryIndex = index;
+            slides[currentSecondaryIndex].classList.remove('prev', 'next');
+            slides[currentSecondaryIndex].classList.add('active');
+            dots[currentSecondaryIndex].classList.add('active');
+            
+            // Update counter
+            document.getElementById('secondaryChartCount').textContent = `${currentSecondaryIndex + 1}/${slides.length}`;
+            
+            // Reset progress bar
+            document.getElementById('secondaryProgress').style.width = '0%';
+            
+            // Restart autoplay timer
+            if (isSecondaryAutoplayActive) {
+                startSecondaryAutoplay();
+            }
+            
+            // Clean up animation classes after transition
+            setTimeout(() => {
+                slides.forEach(slide => {
+                    slide.classList.remove('prev', 'next');
+                });
+            }, 500);
+        }
+
+        function startSecondaryAutoplay() {
+            if (secondaryAutoplayInterval) {
+                clearInterval(secondaryAutoplayInterval);
+            }
+            if (secondaryProgressInterval) {
+                clearInterval(secondaryProgressInterval);
+            }
+            
+            isSecondaryAutoplayActive = true;
+            
+            let progressWidth = 0;
+            const progressBar = document.getElementById('secondaryProgress');
+            
+            secondaryProgressInterval = setInterval(() => {
+                progressWidth += (100 / (SECONDARY_SLIDE_DURATION / 100));
+                if (progressWidth >= 100) {
+                    progressWidth = 0;
+                }
+                progressBar.style.width = progressWidth + '%';
+            }, 100);
+            
+            secondaryAutoplayInterval = setInterval(() => {
+                nextSecondaryChart();
+                progressWidth = 0;
+            }, SECONDARY_SLIDE_DURATION);
+        }
+
+        function stopSecondaryAutoplay() {
+            if (secondaryAutoplayInterval) {
+                clearInterval(secondaryAutoplayInterval);
+                secondaryAutoplayInterval = null;
+            }
+            if (secondaryProgressInterval) {
+                clearInterval(secondaryProgressInterval);
+                secondaryProgressInterval = null;
+            }
+            
+            isSecondaryAutoplayActive = false;
+            document.getElementById('secondaryProgress').style.width = '0%';
+        }
+
+        function nextSecondaryChart() {
+            const slides = document.querySelectorAll('.secondary-chart-slide');
+            if (slides.length <= 1) return;
+            
+            const nextIndex = (currentSecondaryIndex + 1) % slides.length;
+            goToSecondaryChart(nextIndex);
         }
 
         function getChartEmoji(chartType) {
@@ -1102,7 +1832,7 @@
 
         function generateDataTable(data) {
             if (!data || data.length === 0) {
-                return '<div class="no-charts">📋 No data returned from query.</div>';
+                return '<div class="no-charts-message">📋 No data returned from query.</div>';
             }
 
             const headers = Object.keys(data[0]);
@@ -1127,9 +1857,11 @@
 
             html += '</tbody></table>';
             return html;
-        }        function generateDescriptionDisplay(description) {
+        }
+
+        function generateDescriptionDisplay(description) {
             if (!description || description.trim() === '') {
-                return '<div class="no-charts">📝 No description available.</div>';
+                return '<div class="no-charts-message">📝 No description available.</div>';
             }
             
             // Parse markdown to HTML
@@ -1162,13 +1894,15 @@
         // Add some fun random updates to stats every few seconds
         setInterval(() => {
             const coffeeCard = document.querySelector('.stat-card .stat-number[data-target="47"]');
-            const currentCoffee = parseInt(coffeeCard.textContent);
-            if (Math.random() < 0.1) { // 10% chance every interval
-                coffeeCard.textContent = currentCoffee + 1;
-                coffeeCard.parentElement.style.transform = 'scale(1.1)';
-                setTimeout(() => {
-                    coffeeCard.parentElement.style.transform = '';
-                }, 200);
+            if (coffeeCard) {
+                const currentCoffee = parseInt(coffeeCard.textContent);
+                if (Math.random() < 0.1) { // 10% chance every interval
+                    coffeeCard.textContent = currentCoffee + 1;
+                    coffeeCard.parentElement.style.transform = 'scale(1.1)';
+                    setTimeout(() => {
+                        coffeeCard.parentElement.style.transform = '';
+                    }, 200);
+                }
             }
         }, 5000);
 

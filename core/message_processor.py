@@ -49,8 +49,8 @@ class MessageProcessor:
         
         # Join and limit to reasonable length
         description = ' '.join(meaningful_lines)
-        if len(description) > 500:
-            description = description[:500] + "..."
+        if len(description) > 2000:
+            description = description[:200] + "..."
         
         return description if description else "Query executed successfully"
     

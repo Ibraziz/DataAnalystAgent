@@ -1,257 +1,276 @@
+# Improved chart_processor.py with better validation and structure handling
+
 import json
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 class ChartProcessor:
-    """Handles all chart-related processing and extraction."""
-    
-    def __init__(self):
-        """Initialize the chart processor."""
-        self.valid_chart_types = ['bar', 'line', 'pie', 'doughnut', 'radar', 'polarArea', 'scatter', 'bubble']
+    """Handles chart extraction and processing from LLM responses."""
     
     def extract_charts_from_response(self, response_text: str) -> List[Dict[str, Any]]:
-        """Extract Chart.js configuration objects from LLM response text."""
+        """
+        Extract charts from LLM response that can be either individual chart objects or arrays of charts.
+        Handles the new structure with relevancy and chart_config.
+        """
         charts = []
         
-        try:
-            print(f"DEBUG: Looking for charts in response text (length: {len(response_text)})")
-            
-            # Pattern 1: Look for ```json blocks
-            json_pattern = r'```json\s*(.*?)\s*```'
-            json_blocks = re.findall(json_pattern, response_text, re.DOTALL | re.IGNORECASE)
-            
-            print(f"DEBUG: Found {len(json_blocks)} JSON blocks")
-            
-            for i, block in enumerate(json_blocks):
-                try:
-                    print(f"DEBUG: Processing JSON block {i}")
-                    cleaned_block = self.clean_json_for_parsing(block.strip())
-                    parsed = json.loads(cleaned_block)
-                    
-                    if self.is_valid_chart_config(parsed):
-                        print(f"DEBUG: Valid chart config found in block {i}")
-                        charts.append(parsed)
-                    else:
-                        print(f"DEBUG: Invalid chart config in block {i}")
-                        
-                except (json.JSONDecodeError, TypeError) as e:
-                    print(f"DEBUG: Failed to parse JSON block {i}: {e}")
-                    try:
-                        fixed_block = self.fix_common_json_issues(block.strip())
-                        parsed = json.loads(fixed_block)
-                        if self.is_valid_chart_config(parsed):
-                            print(f"DEBUG: Fixed and parsed JSON block {i}")
-                            charts.append(parsed)
-                    except Exception as fix_error:
-                        print(f"DEBUG: Could not fix JSON block {i}: {fix_error}")
-                        try:
-                            basic_chart = self.extract_basic_chart_from_broken_json(block.strip())
-                            if basic_chart:
-                                print(f"DEBUG: Created basic chart from broken JSON block {i}")
-                                charts.append(basic_chart)
-                        except:
-                            print(f"DEBUG: Could not create basic chart from block {i}")
-                        continue
-            
-            # Pattern 2: Look for chart objects without json tags
-            chart_patterns = [
-                r'{\s*["\']?type["\']?\s*:\s*["\'](?:bar|line|pie|doughnut|radar|polarArea|scatter|bubble)["\'].*?(?=\n\n|\n```|\n#|$)',
-            ]
-            
-            for pattern in chart_patterns:
-                matches = re.findall(pattern, response_text, re.DOTALL | re.IGNORECASE)
-                print(f"DEBUG: Found {len(matches)} pattern matches")
-                
-                for match in matches:
-                    try:
-                        cleaned_match = self.clean_json_for_parsing(match)
-                        parsed = json.loads(cleaned_match)
-                        if self.is_valid_chart_config(parsed):
-                            charts.append(parsed)
-                            print(f"DEBUG: Added chart from pattern match")
-                    except:
-                        continue
-            
-            print(f"DEBUG: Total charts extracted: {len(charts)}")
-            
-        except Exception as e:
-            print(f"DEBUG: Error extracting charts from response: {e}")
+        print(f"DEBUG: Looking for charts in response text (length: {len(response_text)})")
         
-        return charts
-    
-    def clean_json_for_parsing(self, json_str: str) -> str:
-        """Clean JSON string to make it parseable by removing JavaScript functions."""
-        try:
-            print(f"DEBUG: Original JSON length: {len(json_str)}")
-            
-            # Remove tooltip section with JavaScript functions
-            json_str = re.sub(r'"tooltip"\s*:\s*{[^}]*"callbacks"[^}]*function[^}]*}[^}]*}', '"tooltip": {}', json_str, flags=re.DOTALL)
-            
-            # Remove function definitions
-            json_str = re.sub(r'"callbacks"\s*:\s*{[^}]*}', '{}', json_str, flags=re.DOTALL)
-            json_str = re.sub(r'function\s*\([^)]*\)\s*{[^}]*}', 'null', json_str, flags=re.DOTALL)
-            json_str = re.sub(r'"[^"]*"\s*:\s*function[^,}]*[,}]', '', json_str, flags=re.DOTALL)
-            
-            # Clean up JSON structure
-            json_str = re.sub(r',\s*,', ',', json_str)
-            json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
-            json_str = re.sub(r'{\s*,', '{', json_str)
-            json_str = re.sub(r':\s*,', ': null,', json_str)
-            
-            print(f"DEBUG: Cleaned JSON length: {len(json_str)}")
-            return json_str
-            
-        except Exception as e:
-            print(f"DEBUG: Error cleaning JSON: {e}")
-            return json_str
-    
-    def fix_common_json_issues(self, json_str: str) -> str:
-        """Try to fix common JSON parsing issues more aggressively."""
-        try:
-            print("DEBUG: Attempting to fix JSON issues...")
-            
-            # Remove problematic sections
-            json_str = re.sub(r',?\s*"tooltip"\s*:\s*{[^{]*{[^}]*}[^}]*}', '', json_str, flags=re.DOTALL)
-            json_str = re.sub(r',?\s*"callbacks"\s*:\s*{[^}]*}', '', json_str, flags=re.DOTALL)
-            json_str = re.sub(r'function\s*\([^)]*\)\s*{[^}]*}', 'null', json_str, flags=re.DOTALL)
-            
-            # Remove lines containing 'function'
-            lines = json_str.split('\n')
-            cleaned_lines = []
-            in_function = False
-            brace_count = 0
-            
-            for line in lines:
-                if 'function' in line:
-                    in_function = True
-                    brace_count = line.count('{') - line.count('}')
-                    continue
-                elif in_function:
-                    brace_count += line.count('{') - line.count('}')
-                    if brace_count <= 0:
-                        in_function = False
-                    continue
-                else:
-                    cleaned_lines.append(line)
-            
-            json_str = '\n'.join(cleaned_lines)
-            
-            # Clean up JSON structure
-            json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
-            json_str = re.sub(r'([}\]]),(\s*[}\]])', r'\1\2', json_str)
-            json_str = re.sub(r'{\s*,', '{', json_str)
-            json_str = re.sub(r',\s*}', '}', json_str)
-            
-            return json_str
-            
-        except Exception as e:
-            print(f"DEBUG: Error fixing JSON: {e}")
-            return json_str
-    
-    def is_valid_chart_config(self, config: Dict[str, Any]) -> bool:
-        """Check if a parsed object is a valid Chart.js configuration."""
-        try:
-            if not isinstance(config, dict):
-                print("DEBUG: Chart config is not a dict")
-                return False
-            
-            if 'type' not in config:
-                print("DEBUG: Chart config missing 'type' field")
-                return False
-            
-            if config['type'] not in self.valid_chart_types:
-                print(f"DEBUG: Invalid chart type: {config['type']}")
-                return False
-            
-            if 'data' not in config:
-                print("DEBUG: Chart config missing 'data' field")
-                return False
-            
-            if not isinstance(config['data'], dict):
-                print("DEBUG: Chart config 'data' is not a dict")
-                return False
-            
-            print(f"DEBUG: Valid chart config found - type: {config['type']}")
-            return True
-            
-        except Exception as e:
-            print(f"DEBUG: Error validating chart config: {e}")
-            return False
-    
-    def extract_basic_chart_from_broken_json(self, broken_json: str) -> Optional[Dict[str, Any]]:
-        """Extract basic chart information from broken JSON and create a simplified chart."""
-        try:
-            print("DEBUG: Attempting to extract basic chart from broken JSON")
-            
-            # Extract chart type
-            type_match = re.search(r'"type"\s*:\s*"([^"]*)"', broken_json)
-            chart_type = type_match.group(1) if type_match else "bar"
-            
-            # Extract labels
-            labels_match = re.search(r'"labels"\s*:\s*\[(.*?)\]', broken_json, re.DOTALL)
-            labels = []
-            if labels_match:
-                labels_str = labels_match.group(1)
-                labels = re.findall(r'"([^"]*)"', labels_str)
-            
-            # Extract data arrays
-            data_matches = re.findall(r'"data"\s*:\s*\[([\d\s,.-]+)\]', broken_json)
-            datasets = []
-            
-            # Extract dataset labels and colors
-            dataset_labels = re.findall(r'"label"\s*:\s*"([^"]*)"', broken_json)
-            color_matches = re.findall(r'"backgroundColor"\s*:\s*"([^"]*)"', broken_json)
-            
-            for i, data_match in enumerate(data_matches):
-                try:
-                    numbers = re.findall(r'[\d.-]+', data_match)
-                    data_values = [float(num) for num in numbers]
-                    
-                    if data_values:
-                        dataset = {
-                            "label": dataset_labels[i] if i < len(dataset_labels) else f"Dataset {i+1}",
-                            "data": data_values,
-                            "backgroundColor": color_matches[i] if i < len(color_matches) else self.generate_color()
-                        }
-                        datasets.append(dataset)
-                except:
-                    continue
-            
-            # Create basic chart if we have minimum required data
-            if chart_type and (labels or datasets):
-                if not labels and datasets and datasets[0]['data']:
-                    labels = [f"Item {i+1}" for i in range(len(datasets[0]['data']))]
+        # Look for JSON blocks in the response
+        json_pattern = r'```json\s*([\s\S]*?)\s*```'
+        json_blocks = re.findall(json_pattern, response_text, re.IGNORECASE)
+        
+        print(f"DEBUG: Found {len(json_blocks)} JSON blocks")
+        
+        for i, json_block in enumerate(json_blocks):
+            try:
+                # Clean the JSON block
+                cleaned_json = json_block.strip()
+                print(f"DEBUG: Processing JSON block {i} (length: {len(cleaned_json)})")
                 
-                basic_chart = {
-                    "type": chart_type,
-                    "data": {
-                        "labels": labels,
-                        "datasets": datasets
-                    },
-                    "options": {
-                        "responsive": True,
-                        "maintainAspectRatio": False,
-                        "plugins": {
-                            "title": {
-                                "display": True,
-                                "text": f"{chart_type.title()} Chart"
-                            }
+                # Parse the JSON
+                parsed_json = json.loads(cleaned_json)
+                
+                print(f"DEBUG: Successfully parsed JSON block {i}, type: {type(parsed_json)}")
+                
+                # Handle different structures
+                if isinstance(parsed_json, list):
+                    # This is an array of charts
+                    print(f"DEBUG: Processing array of {len(parsed_json)} charts")
+                    for j, chart_item in enumerate(parsed_json):
+                        if isinstance(chart_item, dict):
+                            processed_chart = self._process_chart_item(chart_item, f"block_{i}_array[{j}]")
+                            if processed_chart:
+                                charts.append(processed_chart)
+                        else:
+                            print(f"DEBUG: Chart {j} in array is not a dict: {type(chart_item)}")
+                            
+                elif isinstance(parsed_json, dict):
+                    # Single chart object
+                    print(f"DEBUG: Processing single chart object")
+                    processed_chart = self._process_chart_item(parsed_json, f"block_{i}_single")
+                    if processed_chart:
+                        charts.append(processed_chart)
+                else:
+                    print(f"DEBUG: Parsed JSON is neither list nor dict: {type(parsed_json)}")
+                    
+            except json.JSONDecodeError as e:
+                print(f"DEBUG: Failed to parse JSON block {i}: {e}")
+                print(f"DEBUG: Problematic JSON start: {json_block[:200]}...")
+                
+                # Try to extract charts from broken JSON using fallback method
+                fallback_charts = self._extract_charts_fallback(json_block)
+                charts.extend(fallback_charts)
+                continue
+            except Exception as e:
+                print(f"DEBUG: Unexpected error processing JSON block {i}: {e}")
+                continue
+        
+        print(f"DEBUG: Total charts extracted: {len(charts)}")
+        
+        # Log chart details and validate
+        validated_charts = []
+        for i, chart in enumerate(charts):
+            if self._validate_chart_structure(chart, f"chart_{i}"):
+                validated_charts.append(chart)
+            else:
+                print(f"DEBUG: Chart {i} failed validation, excluding from results")
+        
+        print(f"DEBUG: Charts after validation: {len(validated_charts)}")
+        return validated_charts
+    
+    def _process_chart_item(self, chart_item: Dict[str, Any], context: str = "") -> Dict[str, Any]:
+        """Process a single chart item and validate its structure."""
+        
+        # Check if this is the new structure with relevancy and chart_config
+        if 'relevancy' in chart_item and 'chart_config' in chart_item:
+            relevancy = chart_item['relevancy']
+            chart_config = chart_item['chart_config']
+            user_input = chart_item.get('user_input', '')
+            
+            if self._is_valid_chart_config(chart_config):
+                print(f"DEBUG: {context} - Valid chart with relevancy '{relevancy}' and type '{chart_config.get('type')}'")
+                # Return the full structure for proper handling
+                result = {
+                    'relevancy': relevancy,
+                    'chart_config': chart_config
+                }
+                if user_input:
+                    result['user_input'] = user_input
+                return result
+            else:
+                print(f"DEBUG: {context} - Invalid chart_config in relevancy structure")
+                return None
+        
+        # Check if this is a direct chart config with relevancy field
+        elif 'relevancy' in chart_item and 'type' in chart_item and 'data' in chart_item:
+            relevancy = chart_item['relevancy']
+            chart_type = chart_item['type']
+            user_input = chart_item.get('user_input', '')
+            
+            if self._is_valid_chart_config(chart_item):
+                print(f"DEBUG: {context} - Valid direct chart config with relevancy '{relevancy}' and type '{chart_type}'")
+                # Keep the structure but mark it properly
+                result = chart_item.copy()
+                return result
+            else:
+                print(f"DEBUG: {context} - Invalid direct chart config with relevancy")
+                return None
+        
+        # Check if this is a standard chart config without relevancy
+        elif 'type' in chart_item and 'data' in chart_item:
+            chart_type = chart_item['type']
+            
+            if self._is_valid_chart_config(chart_item):
+                print(f"DEBUG: {context} - Valid standard chart config with type '{chart_type}'")
+                # Add default relevancy if missing
+                result = chart_item.copy()
+                if 'relevancy' not in result:
+                    result['relevancy'] = 'main'  # Default to main
+                return result
+            else:
+                print(f"DEBUG: {context} - Invalid standard chart config")
+                return None
+        
+        else:
+            print(f"DEBUG: {context} - Chart doesn't match any expected structure")
+            print(f"DEBUG: {context} - Available keys: {list(chart_item.keys())}")
+            return None
+    
+    def _validate_chart_structure(self, chart: Dict[str, Any], context: str = "") -> bool:
+        """Validate the overall chart structure."""
+        if not isinstance(chart, dict):
+            print(f"DEBUG: {context} - Chart is not a dict")
+            return False
+        
+        # Extract the actual chart config
+        chart_config = chart
+        if 'chart_config' in chart:
+            chart_config = chart['chart_config']
+        
+        # Validate the chart config
+        if not self._is_valid_chart_config(chart_config):
+            print(f"DEBUG: {context} - Chart config validation failed")
+            return False
+        
+        # Check for required fields in the overall structure
+        if 'relevancy' not in chart:
+            print(f"DEBUG: {context} - Missing relevancy field")
+            return False
+        
+        relevancy = chart['relevancy']
+        if relevancy not in ['main', 'secondary']:
+            print(f"DEBUG: {context} - Invalid relevancy value: {relevancy}")
+            return False
+        
+        print(f"DEBUG: {context} - Chart structure validation passed")
+        return True
+    
+    def _is_valid_chart_config(self, chart_config: Dict[str, Any]) -> bool:
+        """Validate that a chart config has the required structure."""
+        if not isinstance(chart_config, dict):
+            return False
+        
+        # Must have type and data
+        if 'type' not in chart_config or 'data' not in chart_config:
+            return False
+        
+        # Validate chart type
+        valid_types = ['bar', 'line', 'pie', 'doughnut', 'scatter', 'radar', 'polarArea', 'bubble']
+        if chart_config['type'] not in valid_types:
+            print(f"DEBUG: Invalid chart type: {chart_config['type']}")
+            return False
+        
+        # Data must be a dict
+        if not isinstance(chart_config['data'], dict):
+            return False
+        
+        # Data should have datasets (for most chart types)
+        data = chart_config['data']
+        if 'datasets' not in data:
+            return False
+        
+        # Datasets should be a list with at least one dataset
+        if not isinstance(data['datasets'], list) or len(data['datasets']) == 0:
+            return False
+        
+        # Validate each dataset
+        for i, dataset in enumerate(data['datasets']):
+            if not isinstance(dataset, dict):
+                print(f"DEBUG: Dataset {i} is not a dict")
+                return False
+            
+            if 'data' not in dataset:
+                print(f"DEBUG: Dataset {i} missing data field")
+                return False
+            
+            if not isinstance(dataset['data'], list):
+                print(f"DEBUG: Dataset {i} data is not a list")
+                return False
+        
+        # For non-pie charts, labels should be present
+        if chart_config['type'] not in ['pie', 'doughnut'] and 'labels' not in data:
+            print(f"DEBUG: Chart type {chart_config['type']} missing labels")
+            return False
+        
+        return True
+    
+    def _extract_charts_fallback(self, broken_json: str) -> List[Dict[str, Any]]:
+        """Fallback method to extract basic chart info from broken JSON."""
+        charts = []
+        
+        print("DEBUG: Attempting fallback chart extraction from broken JSON")
+        
+        # Try to find chart type
+        type_match = re.search(r'"type"\s*:\s*"([^"]+)"', broken_json)
+        if not type_match:
+            print("DEBUG: No chart type found in broken JSON")
+            return charts
+        
+        chart_type = type_match.group(1)
+        
+        # Try to find labels
+        labels_match = re.search(r'"labels"\s*:\s*\[(.*?)\]', broken_json, re.DOTALL)
+        labels = []
+        if labels_match:
+            labels_text = labels_match.group(1)
+            # Extract quoted strings
+            label_matches = re.findall(r'"([^"]+)"', labels_text)
+            labels = label_matches
+        
+        # Try to find data values
+        data_match = re.search(r'"data"\s*:\s*\[([\d.,\s]+)\]', broken_json)
+        data_values = []
+        if data_match:
+            data_text = data_match.group(1)
+            # Extract numbers
+            numbers = re.findall(r'[\d.]+', data_text)
+            data_values = [float(num) for num in numbers]
+        
+        if labels and data_values and len(labels) == len(data_values):
+            basic_chart = {
+                "relevancy": "main",  # Default fallback charts to main
+                "type": chart_type,
+                "data": {
+                    "labels": labels,
+                    "datasets": [{
+                        "label": "Data",
+                        "data": data_values,
+                        "backgroundColor": ["#3498db", "#e74c3c", "#f39c12", "#27ae60", "#9b59b6", "#1abc9c"][:len(data_values)]
+                    }]
+                },
+                "options": {
+                    "responsive": True,
+                    "maintainAspectRatio": False,
+                    "plugins": {
+                        "title": {
+                            "display": True,
+                            "text": f"Fallback {chart_type.title()} Chart"
                         }
                     }
                 }
-                
-                print(f"DEBUG: Created basic chart with {len(labels)} labels and {len(datasets)} datasets")
-                return basic_chart
-            
-        except Exception as e:
-            print(f"DEBUG: Error extracting basic chart: {e}")
+            }
+            charts.append(basic_chart)
+            print(f"DEBUG: Created basic fallback chart with {len(labels)} labels and {len(data_values)} data points")
         
-        return None
-    
-    def generate_color(self) -> str:
-        """Generate a single color."""
-        base_colors = [
-            "#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6",
-            "#1abc9c", "#34495e", "#e67e22", "#95a5a6", "#f1c40f"
-        ]
-        return base_colors[0]  # Return first color as default 
+        return charts
