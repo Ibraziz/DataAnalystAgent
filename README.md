@@ -127,6 +127,7 @@ Ask a question like:
    - Enhanced business context and inferences
 5. 📊 **Create interactive visualizations** with Chart.js
 6. 🎯 **Present results** in a professional web interface
+7. 🔄 **Generate follow-up queries** via clickable charts in sliding panel interface
 
 ![step9](images/step9.png)
 ![step8](images/step8.png)
