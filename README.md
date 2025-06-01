@@ -132,7 +132,7 @@ Ask a question like:
 ![step8](images/step8.png)
 ![step7](images/step7.png)
 ![step10](images/step10.png)
-![step11](images/step11/png)
+![step11](images/step11.png)
 
 
 
